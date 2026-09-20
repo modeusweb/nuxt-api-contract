@@ -32,8 +32,14 @@ export interface ApiContractModuleOptions {
     description?: string
     output?: string
   }
-  /** Enable registered contract mocks (development/testing only). */
-  mocks?: boolean
+  /**
+   * Mock mode:
+   * - `false` (default): real handlers.
+   * - `true`: use mocks registered via `mockContract()`.
+   * - `'auto'`: use registered mocks, and generate mock responses
+   *   from the response schemas for contracts without an explicit mock.
+   */
+  mocks?: boolean | 'auto'
   /** Nuxt DevTools panel (no-op when DevTools is not installed). */
   devtools?: boolean
   /** Directories scanned for contract auto-imports. */
@@ -76,12 +82,14 @@ export default defineNuxtModule<ApiContractModuleOptions>({
     const rootDir = nuxt.options.rootDir
 
     /* --- runtime config (secrets never go to `public`) --- */
+    const mocksEnabled = options.mocks === true || options.mocks === 'auto'
     nuxt.options.runtimeConfig.apiContract = defu(nuxt.options.runtimeConfig.apiContract ?? {}, {
       validateResponse: options.validateResponse ?? 'development',
-      mocks: options.mocks ?? false,
+      mocks: mocksEnabled,
+      mocksAuto: options.mocks === 'auto',
     })
     nuxt.options.runtimeConfig.public.apiContract = defu(nuxt.options.runtimeConfig.public.apiContract ?? {}, {
-      mocks: options.mocks ?? false,
+      mocks: mocksEnabled,
     })
 
     /* --- app auto-imports --- */

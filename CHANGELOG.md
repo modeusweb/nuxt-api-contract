@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0
+
+### Added
+
+- **Standalone mock server**: `npx nuxt-api-contract mock <entry>` — serves
+  contract endpoints with deterministic generated responses
+  (`--port`, `--host`, `--seed`, `--delay`, `--lenient`), CORS enabled,
+  `GET /__mock/contracts` lists available endpoints. New package export:
+  `nuxt-api-contract/mock` (`createMockServer` / `startMockServer`).
+- **Mock generation from contracts**: `generateMockResponse(contract)` builds
+  schema-valid data from the response schema (seeded, deterministic; name
+  heuristics for email/uuid/url/dates; password/token fields are always
+  masked). `autoMockContract(contract)` registers it as a mock preset.
+- **`apiContract.mocks: 'auto'`**: contract handlers fall back to generated
+  mock responses when no explicit `mockContract()` is registered.
+- New integration/unit suites for the generator and the mock server.
+
 ## 0.1.0
 
 Initial MVP release.

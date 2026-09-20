@@ -17,9 +17,11 @@ the core flow.
 src/
 ├── module.ts                 Nuxt module (build-time concerns only)
 ├── module/devtoolsHtml.ts    DevTools panel data builder
-├── cli.ts                    `nuxt-api-contract openapi` CLI (jiti loader)
+├── cli.ts                    `nuxt-api-contract openapi|mock` CLI (jiti loader)
 ├── openapi/
 │   └── generator.ts          Contract/Zod -> OpenAPI (isolated layer)
+├── mock/
+│   └── server.ts             Standalone mock server (node:http, no framework)
 ├── client.ts                 client-safe barrel (loadable OUTSIDE Nuxt)
 ├── composables.ts            useApi / useApiClient (needs #imports)
 ├── server.ts                 server barrel

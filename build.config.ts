@@ -9,6 +9,7 @@ export default defineBuildConfig({
     'src/server',
     'src/testing',
     'src/openapi',
+    'src/mock',
     'src/cli',
     // Runtime files referenced by path (Nitro routes served via
     // addServerHandler) must be shipped preserving the directory structure.

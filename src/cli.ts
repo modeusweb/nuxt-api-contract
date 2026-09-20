@@ -96,7 +96,40 @@ async function main(): Promise<void> {
     return
   }
 
-  console.error(`[nuxt-api-contract] Unknown command "${command ?? ''}". Available commands: openapi`)
+  if (command === 'mock') {
+    const entry = positional[0]
+    if (!entry || !existsSync(entry)) {
+      console.error('[nuxt-api-contract] Usage: nuxt-api-contract mock <entry> [--port 4000] [--seed 42] [--lenient]')
+      process.exitCode = 1
+      return
+    }
+    const contracts = await loadContractsFromEntry(resolve(entry))
+    const { startMockServer } = await import('./mock/server')
+    const seed = flags.seed !== undefined && flags.seed !== true ? Number(flags.seed) : undefined
+    const handle = await startMockServer({
+      contracts,
+      port: flags.port !== undefined && flags.port !== true ? Number(flags.port) : 4000,
+      host: typeof flags.host === 'string' ? flags.host : '127.0.0.1',
+      seed,
+      delay: flags.delay !== undefined && flags.delay !== true ? Number(flags.delay) : undefined,
+      lenient: flags.lenient === true,
+    })
+    console.log(`[nuxt-api-contract] Mock server listening on ${handle.url} (seed: ${seed ?? 'randomized per contract'}, lenient: ${flags.lenient === true})`)
+    for (const contract of contracts) {
+      console.log(`  ${contract.method.padEnd(6)} ${handle.url}${contract.path}`)
+    }
+    console.log('  GET    /__mock/contracts  (list endpoints)')
+    console.log('Press Ctrl+C to stop.')
+    const shutdown = async () => {
+      await handle.close()
+      process.exit(0)
+    }
+    process.on('SIGINT', shutdown)
+    process.on('SIGTERM', shutdown)
+    return
+  }
+
+  console.error(`[nuxt-api-contract] Unknown command "${command ?? ''}". Available commands: openapi, mock`)
   process.exitCode = 1
 }
 

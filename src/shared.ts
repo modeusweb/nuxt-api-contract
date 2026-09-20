@@ -26,3 +26,5 @@ export { toValidationIssues, formatValidationMessage, sanitizeIssues } from './r
 export type { ValidationIssue } from './runtime/shared/format'
 export { serializeQuery, serializeQueryValue, stableStringify } from './runtime/shared/serialization'
 export type * from './runtime/shared/types'
+export { autoMockContract, generateMockResponse, generateMockValue, createRng } from './runtime/shared/mock'
+export type { MockGenerateOptions } from './runtime/shared/mock'

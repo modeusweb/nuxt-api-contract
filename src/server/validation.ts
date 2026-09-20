@@ -12,6 +12,8 @@ export type ResponseValidationMode = 'never' | 'development' | 'always'
 export interface RuntimeApiContractConfig {
   validateResponse?: ResponseValidationMode
   mocks?: boolean
+  /** Generate mock responses for contracts without an explicit mock. */
+  mocksAuto?: boolean
 }
 
 /** Reads runtime contract config from the current Nitro runtime config. */

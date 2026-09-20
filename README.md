@@ -237,13 +237,38 @@ generation never fails.
 ## Mocking
 
 ```ts
-import { mockContract } from 'nuxt-api-contract/client'
+import { mockContract, autoMockContract } from 'nuxt-api-contract/client'
 
 mockContract(GetUser, { response: () => ({ id: '1', name: 'Mocked User' }) })
+autoMockContract(GetUser, { seed: 42 }) // generated from the response schema
 ```
 
-Enable `apiContract: { mocks: true }` and contract handlers return the mock
-response (still validated against the response schema).
+Enable `apiContract: { mocks: true | 'auto' }` and contract handlers return
+mock responses (still validated against the response schema). With `'auto'`,
+contracts without an explicit `mockContract()` fall back to generated data.
+
+### Standalone mock server
+
+Serve contract endpoints without a Nuxt build (frontend development against a
+not-yet-implemented backend):
+
+```bash
+npx nuxt-api-contract mock contracts/index.ts --port 4000 --seed 42
+# add --lenient to skip request validation, --delay 300 for artificial latency
+```
+
+Or programmatically:
+
+```ts
+import { startMockServer } from 'nuxt-api-contract/mock'
+
+const mock = await startMockServer({ contracts: [GetUser, ListUsers], port: 4000 })
+// GET /__mock/contracts lists available endpoints; CORS is enabled.
+await mock.close()
+```
+
+Responses are deterministic for a given `--seed`; password/token fields are
+always masked.
 
 ## Testing
 
@@ -322,6 +347,7 @@ and DevTools are not part of any runtime import chain (importing
 | `nuxt-api-contract/server` | `defineContractHandler`, validation helpers |
 | `nuxt-api-contract/testing` | `callContract` |
 | `nuxt-api-contract/openapi` | OpenAPI generator |
+| `nuxt-api-contract/mock` | Standalone mock server + mock generators |
 | `nuxt-api-contract/shared` | Shared primitives |
 
 ## Limitations
@@ -330,15 +356,14 @@ and DevTools are not part of any runtime import chain (importing
 - Request bodies are JSON; `multipart/form-data` (file uploads) is planned —
   the contract abstraction already does not assume JSON-only bodies.
 - OpenAPI conversion is best-effort for `transform` / `refine` / `preprocess`.
-- The standalone mock server (`nuxt-api-contract mock`) is not implemented yet.
 - Auto-discovery is directory-based (`contracts/`, `server/contracts/`) rather
   than a build-time scanner.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md). In short: **0.1.0 (released)** ships core
-contracts, OpenAPI generation and the DevTools panel; next: 0.2.0 standalone
-mock server, 0.3.0 extended contract testing, 0.4.0 OpenAPI client generation,
+See [ROADMAP.md](ROADMAP.md). In short: **0.1.0** core contracts + OpenAPI +
+DevTools and **0.2.0** standalone mock server / generated mocks are released;
+next: 0.3.0 extended contract testing, 0.4.0 OpenAPI client generation,
 0.5.0 external API contracts, 0.6.0 contract versioning, 1.0.0 stable API.
 
 ## Development

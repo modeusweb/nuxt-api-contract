@@ -6,6 +6,7 @@ import type { AnyApiContract, MaybePromise, ContractHandlerResponse  } from '../
 import { ApiError, BUILT_IN_ERROR_CODES, createApiError, serializeApiError } from '../runtime/shared/errors'
 import type { ApiErrorPayload } from '../runtime/shared/errors'
 import { getContractMock } from '../runtime/shared/contract'
+import { generateMockResponse } from '../runtime/shared/mock'
 import {
   readRuntimeConfig,
   shouldValidateResponse,
@@ -121,7 +122,10 @@ export function defineContractHandler<C extends AnyApiContract>(
 
       // --- mocks (module option `apiContract.mocks`) ---
       const runtimeConfig = readRuntimeConfig(() => useNitroRuntimeConfig(event))
-      const mock = getContractMock(contract)
+      const explicitMock = getContractMock(contract)
+      const mock = explicitMock ?? (runtimeConfig.mocksAuto
+        ? { response: () => generateMockResponse(contract) }
+        : undefined)
       if (runtimeConfig.mocks && mock?.response) {
         const mocked = await mock.response()
         return finalize(contract, mocked, runtimeConfig)
