@@ -10,6 +10,15 @@ export default defineBuildConfig({
     'src/testing',
     'src/openapi',
     'src/cli',
+    // Runtime files referenced by path (Nitro routes served via
+    // addServerHandler) must be shipped preserving the directory structure.
+    {
+      builder: 'mkdist',
+      input: 'src/runtime',
+      outDir: 'dist/runtime',
+      ext: 'mjs',
+      declaration: false,
+    },
   ],
   declaration: 'compatible',
   clean: true,
@@ -20,7 +29,6 @@ export default defineBuildConfig({
     '#app',
     '#imports',
     'h3',
-    'ofetch',
     'zod',
     'jiti',
     'defu',

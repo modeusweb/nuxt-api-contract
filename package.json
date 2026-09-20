@@ -4,11 +4,18 @@
   "description": "Type-safe API contracts between Nitro server routes and the Nuxt client.",
   "type": "module",
   "license": "MIT",
-  "author": "nuxt-api-contract contributors",
+  "author": {
+    "name": "modeusweb"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/example/nuxt-api-contract"
+    "url": "git+https://github.com/modeusweb/nuxt-api-contract.git",
+    "directory": ""
   },
+  "bugs": {
+    "url": "https://github.com/modeusweb/nuxt-api-contract/issues"
+  },
+  "homepage": "https://github.com/modeusweb/nuxt-api-contract#readme",
   "keywords": [
     "nuxt",
     "nuxt-module",
@@ -64,18 +71,18 @@
     "dev:prepare": "unbuild --stub",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run",
+    "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
     "test:type": "vitest run --typecheck.enabled test/type",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm run test:unit && npm run test:type && npm run build"
   },
   "dependencies": {
     "@nuxt/kit": "^3.17.0",
     "defu": "^6.1.4",
     "h3": "^1.15.0",
-    "jiti": "^2.4.0",
-    "ofetch": "^1.4.0"
+    "jiti": "^2.4.0"
   },
   "peerDependencies": {
     "zod": "^3.23.0"

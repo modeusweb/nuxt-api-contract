@@ -351,6 +351,35 @@ npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
 ```
 
+## Publishing & Versioning
+
+Versioning follows SemVer with the usual 0.x semantics:
+
+- **0.x.y** (current): `y` (patch) — bug fixes; `x` (minor) — features **and**
+  documented breaking changes (pre-1.0 policy, always listed in CHANGELOG.md).
+- **1.0.0+**: strict SemVer — breaking changes only in major releases.
+
+Release flow:
+
+```bash
+# 1. Bump the version (updates package.json, creates a git tag):
+npm version patch   # or: minor | major | prerelease --preid=rc
+
+# 2. Push with tags:
+git push --follow-tags
+
+# 3. Publish (prepublishOnly runs lint + typecheck + unit/type tests + build):
+npm publish
+
+# Pre-release dist-tag (e.g. 0.2.0-rc.1):
+npm publish --tag next
+```
+
+The package name `nuxt-api-contract` is published unscoped with public access.
+`npm pack --dry-run` shows exactly what ships: `dist/**` (bundled entries +
+`dist/runtime` for Nitro routes) plus README/LICENSE/CHANGELOG — no sources,
+tests or playground.
+
 ## License
 
-[MIT](./LICENSE) © nuxt-api-contract contributors
+[MIT](./LICENSE) © modeusweb

@@ -5,4 +5,5 @@ dist
 playground/.nuxt
 playground/.output
 *.log
+*.tgz
 .DS_Store
