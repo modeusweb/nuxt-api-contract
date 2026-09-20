@@ -1,8 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { useApi } from '../../src/client/useApi'
-import { defineApiContract } from '../../src/client'
-import { versionedPath } from '../../src/client'
+import { defineApiContract, versionedPath } from '../../src/client'
 import { defineContractHandler } from '../../src/server'
 import type { PathParams } from '../../src/shared'
 
