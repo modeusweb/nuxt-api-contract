@@ -1,0 +1,356 @@
+# nuxt-api-contract
+
+Type-safe API contracts between Nitro server routes and the Nuxt client.
+
+Define a contract **once** — get runtime validation, fully typed client calls,
+a unified error format, OpenAPI generation, mocks, contract tests and a
+DevTools panel from the same source of truth.
+
+> Status: `0.x` (pre-1.0, SemVer). The public API is intentionally small.
+
+## Why
+
+Without contracts, the request/response agreement between server and client
+lives in three disconnected places: a Zod schema (or nothing), a TS interface
+(or nothing) and documentation (or nothing). `nuxt-api-contract` collapses all
+of them into one object:
+
+```text
+                 ┌── runtime validation (server AND response)
+                 │
+Contract ─────────┼── TypeScript types (params / query / body / response)
+                 │
+                 ├── OpenAPI document
+                 │
+                 ├── DevTools panel
+                 │
+                 └── mocks + contract tests
+```
+
+## Installation
+
+```bash
+npm install nuxt-api-contract zod
+```
+
+Add the module:
+
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  modules: ['nuxt-api-contract'],
+  apiContract: {
+    validateResponse: 'development',
+    openapi: { enabled: true, entry: 'contracts/index.ts' },
+    devtools: true,
+    mocks: false,
+  },
+})
+```
+
+Zod (`^3.23`) is a peer dependency.
+
+## Quick start
+
+```ts
+// contracts/users.ts
+import { z } from 'zod'
+import { defineApiContract } from 'nuxt-api-contract/client'
+
+export const GetUser = defineApiContract({
+  name: 'GetUser',
+  method: 'GET',
+  path: '/api/users/:id',
+  params: z.object({ id: z.string() }),
+  response: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string().email(),
+  }),
+})
+```
+
+```ts
+// server/api/users/[id].get.ts
+import { GetUser } from '../../../contracts/users'
+import { createApiError, defineContractHandler } from 'nuxt-api-contract/server'
+
+export default defineContractHandler(GetUser, async ({ params }) => {
+  const user = await db.find(params.id) // params is typed & validated
+  if (!user) throw createApiError('USER_NOT_FOUND', 'User not found', 404)
+  return user
+})
+```
+
+```vue
+<!-- pages/users/[id].vue -->
+<script setup lang="ts">
+const route = useRoute()
+const { data, error, pending } = await useApi(GetUser, {
+  params: { id: route.params.id as string },
+})
+// data.value?.name -> string | undefined (fully typed)
+</script>
+```
+
+Passing `params: { id: 123 }` is a **TypeScript error**; an invalid request is
+rejected at runtime with a `VALIDATION_ERROR`.
+
+## Defining contracts
+
+```ts
+defineApiContract({
+  name: 'CreateUser',          // optional; registers in the registry
+  version: 1,                  // optional metadata
+  method: 'POST',              // GET | POST | PUT | PATCH | DELETE | HEAD | OPTIONS
+  path: '/api/users',          // `:param` segments become required params
+  params: z.object({}),        // path params schema
+  query: z.object({}),         // query schema (use z.coerce for numbers)
+  body: z.object({}),          // JSON body schema
+  headers: z.object({}),       // raw header schema
+  response: z.object({}),      // success response schema
+  errors: { EMAIL_TAKEN: z.object({}) }, // known error payloads by code
+  summary / description / tags, // OpenAPI metadata
+  auth: true,                  // informational / extension point
+  metadata: {},                // free-form, consumed by tooling
+})
+```
+
+Types are always **inferred** — you never write generics by hand. Path
+parameters are extracted from the path itself: a contract for
+`/api/posts/:postId/comments/:commentId` requires
+`params: { postId: string, commentId: string }` even without a params schema.
+
+### Query values
+
+The browser sends query values as strings. Use `z.coerce.number()` (and
+friends) for numeric query parameters; validation always happens on the server.
+
+## Server handlers
+
+`defineContractHandler(contract, handler)` performs, in order:
+
+1. validation of `headers`, `params`, `query`, `body` against the schemas;
+2. invocation of your handler with **validated, typed** data + the raw `H3Event`;
+3. optional response validation (see configuration);
+4. conversion of thrown `ApiError`s into the unified error payload.
+
+Handler context:
+
+```ts
+interface ContractHandlerContext {
+  params   // validated path params
+  query    // validated query
+  body     // validated body (undefined for GET/HEAD without body schema)
+  headers  // validated headers (raw record when no schema)
+  event    // H3Event
+  user?    // reserved for auth integrations
+}
+```
+
+## Client usage
+
+```ts
+// Reactive (SSR-aware, no hydration mismatch):
+const { data, error, pending, refresh } = await useApi(GetUser, { params: { id } })
+
+// Imperative (actions, Pinia, event handlers):
+const api = await useApiClient()
+const user = await api.request(GetUser, { params: { id } })            // throws ApiError
+const { data, error } = await api.tryRequest(GetUser, { params: { id } })
+```
+
+Both work in the browser, during SSR and after hydration. During SSR the
+request is executed **inside Nitro** (`event.$fetch`) — no HTTP round-trip to
+itself; the payload is transferred to the client automatically.
+
+## Error handling
+
+```ts
+throw createApiError('USER_NOT_FOUND', 'User not found', 404)
+// or
+throw createApiError({ code: 'VALIDATION_ERROR', statusCode: 400, details })
+```
+
+Wire format:
+
+```json
+{ "error": { "code": "USER_NOT_FOUND", "message": "User not found" } }
+```
+
+On the client, `error` (from `useApi`) or the caught value (from
+`useApiClient().request`) is a reconstructed `ApiError` with `code`,
+`statusCode`, `details` and `issues`. Check it with `isApiError(value)`.
+
+Validation errors are readable:
+
+```text
+[nuxt-api-contract]
+
+Invalid query for GET /api/users
+
+query.limit:
+  Expected number
+  Received string
+```
+
+In production, `received` values are stripped (they may contain passwords or
+tokens) and internal error messages are never leaked.
+
+## SSR
+
+Handled automatically by the transport layer:
+
+```text
+Browser          → HTTP $fetch
+SSR              → internal Nitro call (event.$fetch)
+After hydration  → payload from useAsyncData, no refetch, no mismatch
+```
+
+## OpenAPI
+
+Configure the module (build-time generation from a contracts entry file):
+
+```ts
+apiContract: {
+  openapi: {
+    enabled: true,
+    entry: 'contracts/index.ts',   // default array or named exports
+    path: '/_api-contracts/openapi.json',
+    title: 'My API',
+  },
+}
+```
+
+Or from the CLI (works without a Nuxt build):
+
+```bash
+npx nuxt-api-contract openapi contracts/index.ts --output openapi.json
+npx nuxt-api-contract openapi contracts/index.ts --output openapi.yaml
+```
+
+Zod → OpenAPI conversion is a separate abstraction layer
+(`nuxt-api-contract/openapi`). Unsupported Zod features (transform, refine,
+preprocess) degrade to the closest representable schema with a warning —
+generation never fails.
+
+## Mocking
+
+```ts
+import { mockContract } from 'nuxt-api-contract/client'
+
+mockContract(GetUser, { response: () => ({ id: '1', name: 'Mocked User' }) })
+```
+
+Enable `apiContract: { mocks: true }` and contract handlers return the mock
+response (still validated against the response schema).
+
+## Testing
+
+Full pipeline without an HTTP server:
+
+```ts
+import { callContract } from 'nuxt-api-contract/testing'
+
+const { data, error } = await callContract(GetUser, handler, { params: { id: '1' } })
+expect(error).toBeNull()
+expect(data.id).toBe('1')
+```
+
+Validation → handler → response-validation run exactly like in production.
+See `test/integration/playground.test.ts` for full-stack tests with
+`@nuxt/test-utils`.
+
+## DevTools
+
+When `apiContract.devtools` is enabled in development, a panel lists all
+contracts (method, path, params, tags, error codes) and includes a
+"Try request" form. DevTools is optional — the module works normally without
+it. `@nuxt/devtools-kit` is imported dynamically and guarded.
+
+## Configuration
+
+```ts
+apiContract: {
+  validateResponse: 'development', // 'never' | 'development' | 'always'
+  mocks: false,
+  devtools: true,
+  contractsDirs: ['contracts', 'server/contracts'], // contract auto-import dirs
+  openapi: {
+    enabled: false,
+    path: '/_api-contracts/openapi.json',
+    entry: 'contracts/index.ts',
+    title: undefined, version: undefined, description: undefined,
+  },
+}
+```
+
+Runtime config (private, never in `public`):
+
+```json
+{ "apiContract": { "validateResponse": "development", "mocks": false } }
+```
+
+## Architecture
+
+```text
+src/
+├── module.ts            # Nuxt module (build-time)
+├── cli.ts               # `nuxt-api-contract openapi` CLI
+├── openapi/             # Zod -> OpenAPI (isolated, build-time only)
+├── client.ts            # client-safe barrel (contracts, errors, helpers)
+├── composables.ts       # useApi / useApiClient (requires Nuxt context)
+├── server.ts            # server barrel (handler, validation)
+├── testing.ts           # callContract test helper
+└── runtime/
+    ├── shared/          # contract, types, errors, format, serialization
+    ├── client/          # transport, useApi
+    └── server/          # defineContractHandler, validation, routes
+```
+
+Server-only code never reaches the client bundle; the OpenAPI generator, CLI
+and DevTools are not part of any runtime import chain (importing
+`useApi` adds ~4 kB). See [docs/architecture.md](docs/architecture.md).
+
+## Package exports
+
+| Export | Purpose |
+| --- | --- |
+| `nuxt-api-contract` | Module definition (for `modules: []`) |
+| `nuxt-api-contract/client` | Client-safe: `defineApiContract`, `createApiError`, registry, mocks |
+| `nuxt-api-contract/composables` | `useApi`, `useApiClient` (Nuxt context required) |
+| `nuxt-api-contract/server` | `defineContractHandler`, validation helpers |
+| `nuxt-api-contract/testing` | `callContract` |
+| `nuxt-api-contract/openapi` | OpenAPI generator |
+| `nuxt-api-contract/shared` | Shared primitives |
+
+## Limitations
+
+- Zod 3.x only (`^3.23`); Zod 4 support is on the roadmap.
+- Request bodies are JSON; `multipart/form-data` (file uploads) is planned —
+  the contract abstraction already does not assume JSON-only bodies.
+- OpenAPI conversion is best-effort for `transform` / `refine` / `preprocess`.
+- The standalone mock server (`nuxt-api-contract mock`) is not implemented yet.
+- Auto-discovery is directory-based (`contracts/`, `server/contracts/`) rather
+  than a build-time scanner.
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md). In short: v0.2 OpenAPI ✔, v0.3 DevTools ✔,
+v0.4 standalone mock server, v0.5 contract testing helpers ✔,
+v0.6 OpenAPI client generation, v0.7 external API contracts, v0.8 contract
+versioning, v1.0 stable API.
+
+## Development
+
+```bash
+npm run build        # build the package (unbuild)
+npm run test         # unit + integration tests
+npm run test:type    # type tests (vitest typecheck)
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint
+```
+
+## License
+
+[MIT](./LICENSE) © nuxt-api-contract contributors
