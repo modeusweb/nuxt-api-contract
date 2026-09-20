@@ -8,6 +8,7 @@
  */
 import type { ZodType } from 'zod'
 import type { AnyApiContract } from '../runtime/shared/types'
+import { isExternalContract } from '../runtime/shared/contract'
 
 export type JsonSchemaObject = Record<string, unknown>
 
@@ -305,6 +306,15 @@ export function generateOpenApiDocument(
   const paths: Record<string, Record<string, JsonSchemaObject>> = {}
 
   for (const contract of contracts) {
+    if (isExternalContract(contract)) {
+      // External API contracts are not local Nitro operations — representing
+      // them in the document would produce wrong server declarations.
+      warnings.push({
+        contract: contract.name ?? contract.path,
+        message: `External contract (${contract.baseUrl ?? contract.path}) skipped from OpenAPI generation.`,
+      })
+      continue
+    }
     const openApiPath = toOpenApiPath(contract.path)
     paths[openApiPath] ??= {}
     const key = contract.method.toLowerCase()

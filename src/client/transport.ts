@@ -1,5 +1,5 @@
 import type { AnyApiContract, ApiRequestOptions, ContractClientResponse, ResolvedApiRequestOptions  } from '../runtime/shared/types'
-import { buildRequestPath } from '../runtime/shared/contract'
+import { resolveContractUrl } from '../runtime/shared/contract'
 import { ApiError, parseApiErrorPayload, toApiError } from '../runtime/shared/errors'
 import { serializeQuery, stableStringify } from '../runtime/shared/serialization'
 
@@ -44,7 +44,10 @@ export function toContractError(error: unknown): ApiError {
     return new ApiError({
       code: payload.code,
       message: payload.message,
-      statusCode: payload.statusCode ?? 500,
+      statusCode: payload.statusCode
+        ?? (typeof (fetchError as unknown as { statusCode?: unknown }).statusCode === 'number'
+          ? (fetchError as unknown as { statusCode: number }).statusCode
+          : 500),
       details: payload.details,
       issues: payload.issues,
     })
@@ -61,13 +64,27 @@ export function toContractError(error: unknown): ApiError {
 
 export type ContractFetch = (url: string, init: Record<string, unknown>) => Promise<unknown>
 
+/**
+ * Environment-provided fetch factory. Receives the contract so transports can
+ * distinguish internal Nitro routes from external API calls.
+ */
+export type ResolveFetch = (contract: AnyApiContract) => ContractFetch
+
 export interface ExecuteRequestContext {
   /**
    * Performs the actual fetch. Implemented per environment:
    * - SSR: internal Nitro `event.$fetch` (no HTTP round-trip).
    * - Browser: Nuxt `$fetch`.
+   * Receives the contract so external API contracts (absolute URL / `baseUrl`)
+   * can bypass the internal transport and go straight over HTTP.
    */
-  fetch: ContractFetch
+  fetch: ContractFetch | ResolveFetch
+}
+
+function unwrapFetch(doFetch: ExecuteRequestContext['fetch'], contract: AnyApiContract): ContractFetch {
+  return typeof doFetch === 'function' && doFetch.length >= 2
+    ? doFetch as ContractFetch
+    : (doFetch as ResolveFetch)(contract)
 }
 
 /**
@@ -80,11 +97,12 @@ export async function executeContractRequest<C extends AnyApiContract>(
   doFetch: ExecuteRequestContext['fetch'],
 ): Promise<ContractClientResponse<C>> {
   const resolved = resolveRequestOptions(options as ApiRequestOptions<AnyApiContract> | undefined)
-  const url = buildRequestPath(contract.path, resolved.params)
+  const url = resolveContractUrl(contract, resolved.params)
+  const fetchImpl = unwrapFetch(doFetch, contract)
   const hasBodySchema = contract.body !== undefined
   const hasBody = resolved.body !== undefined || hasBodySchema
   try {
-    const response = await doFetch(url, {
+    const response = await fetchImpl(url, {
       method: contract.method,
       query: resolved.query,
       body: contract.method === 'GET' || contract.method === 'HEAD' ? undefined : hasBody ? resolved.body ?? {} : undefined,

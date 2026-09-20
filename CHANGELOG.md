@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+
+- **External API contracts (pluggable transports)**: contracts may point at
+  APIs outside the Nuxt app — either with an absolute URL in `path`
+  (`https://api.github.com/users/:username`) or via a new `baseUrl` option.
+  Path parameters are extracted from URLs at the type level exactly like for
+  internal routes.
+- **Pluggable transport**: `useApiClient({ transport })` accepts a custom
+  fetch-like function used for external contracts (signing, retries, proxies).
+- External requests always go over HTTP (`$fetch` resolves absolute URLs in
+  both SSR and browser) — the internal Nitro transport is bypassed.
+- HTTP status codes from custom transports are preserved on the typed
+  `ApiError` (`error.statusCode`).
+- Tooling guards: external contracts are skipped from OpenAPI generation and
+  from the mock server with a warning instead of producing wrong declarations.
+- 11 unit tests (URL resolution, transport e2e against a local HTTP server,
+  tooling guards) and 3 type tests (external params/response/`@ts-expect-error`).
+
 ## 0.4.0
 
 ### Added

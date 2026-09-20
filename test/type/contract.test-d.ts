@@ -36,6 +36,7 @@ const CreateUser = defineApiContract({
 const NestedContract = defineApiContract({
   method: 'POST',
   path: '/api/orders',
+  baseUrl: 'https://api.example.com',
   body: z.object({
     items: z.array(z.object({ sku: z.string(), qty: z.number() })),
     shipping: z.discriminatedUnion('type', [
@@ -184,5 +185,35 @@ describe('defineContractHandler type safety', () => {
       expectTypeOf(body.name).toEqualTypeOf<string>()
       return { id: '1', name: body.name, email: body.email }
     })
+  })
+})
+
+describe('external API contracts (0.5.0)', () => {
+  const GitHubUser = defineApiContract({
+    name: 'GitHubUser',
+    method: 'GET',
+    path: 'https://api.github.com/users/:username',
+    params: z.object({ username: z.string().min(1) }),
+    response: z.object({ login: z.string(), id: z.number() }),
+  })
+
+  it('extracts path params from absolute URLs at the type level', () => {
+    useApi(GitHubUser, { params: { username: 'nuxt' } })
+    // @ts-expect-error username must be a string
+    useApi(GitHubUser, { params: { username: 123 } })
+    // @ts-expect-error unknown path parameter
+    useApi(GitHubUser, { params: { username: 'nuxt', id: 'x' } })
+  })
+
+  it('types the response of external contracts', () => {
+    const { data } = useApi(GitHubUser, { params: { username: 'nuxt' } })
+    expectTypeOf(data.value?.login).toEqualTypeOf<string | undefined>()
+    expectTypeOf(data.value?.id).toEqualTypeOf<number | undefined>()
+  })
+
+  it('keeps baseUrl contracts fully typed', () => {
+    useApi(NestedContract, { body: { items: [], shipping: { type: 'pickup', storeId: 's' } } })
+    // @ts-expect-error items must be an array of { sku, qty }
+    useApi(NestedContract, { body: { items: [{ sku: 1, qty: 1 }], shipping: { type: 'pickup', storeId: 's' } } })
   })
 })

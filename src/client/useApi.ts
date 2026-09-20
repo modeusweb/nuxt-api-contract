@@ -6,17 +6,27 @@ import type {
   ContractClientResponse,
 } from '../runtime/shared/types'
 import type { ApiError } from '../runtime/shared/errors'
+import { isExternalContract } from '../runtime/shared/contract'
 import { createRequestKey, executeContractRequest, toContractError } from './transport'
-import type { ExecuteRequestContext } from './transport'
+import type { ContractFetch, ExecuteRequestContext, ResolveFetch } from './transport'
 
-export type { ExecuteRequestContext }
+export type { ContractFetch, ExecuteRequestContext, ResolveFetch }
+
+export interface UseApiClientOptions {
+  /**
+   * Pluggable transport for external API contracts (0.5.0): a function that
+   * receives the resolved URL + request init and returns the parsed response.
+   * When omitted, Nuxt `$fetch` (ofetch) is used for external calls.
+   */
+  transport?: ContractFetch
+}
 
 /**
  * Executes a contract request and returns the typed response.
  * Intended for actions, Pinia stores, background jobs and composables where
  * a reactive `AsyncData` wrapper is not needed. Throws `ApiError` on failure.
  */
-export async function useApiClient(): Promise<{
+export async function useApiClient(options?: UseApiClientOptions): Promise<{
   request: <C extends AnyApiContract>(
     contract: C,
     options?: ApiRequestOptions<C>,
@@ -29,15 +39,22 @@ export async function useApiClient(): Promise<{
   const nuxtApp = useNuxtApp()
   const event = import.meta.server ? useRequestEvent() : undefined
 
-  const doFetch: ExecuteRequestContext['fetch'] = (url, init) => {
-    if (event) {
+  const resolveFetch: ResolveFetch = (contract) => {
+    if (options?.transport && isExternalContract(contract)) {
+      return options.transport
+    }
+    if (event && !isExternalContract(contract)) {
       // SSR: call the Nitro route internally, avoiding a full HTTP round-trip.
       // `event.$fetch` is provided by Nitro; typed through a documented boundary.
       const internalFetch = (event as unknown as { $fetch: (url: string, init: Record<string, unknown>) => Promise<unknown> }).$fetch
-      return internalFetch(url, init)
+      return (url, init) => internalFetch(url, init)
     }
-    return nuxtApp.$fetch(url, init)
+    // External contracts (and browser requests) go over HTTP via Nuxt `$fetch`,
+    // which resolves absolute URLs natively in both environments.
+    return (url, init) => (nuxtApp.$fetch as unknown as (url: string, init: Record<string, unknown>) => Promise<unknown>)(url, init)
   }
+
+  const doFetch: ExecuteRequestContext['fetch'] = resolveFetch
 
   return {
     request: (contract, options) => executeContractRequest(contract, options, doFetch),

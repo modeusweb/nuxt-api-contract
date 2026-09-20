@@ -266,6 +266,55 @@ Programmatic API: `import { generateClientSource } from 'nuxt-api-contract/clien
 Like the OpenAPI layer, non-representable Zod features (`transform`, etc.)
 degrade to the closest type with a warning instead of failing.
 
+## External API contracts
+
+Contracts can describe APIs outside your Nuxt app (0.5.0). Two equivalent ways:
+
+```ts
+// absolute URL in `path`
+export const GitHubUser = defineApiContract({
+  name: 'GitHubUser',
+  method: 'GET',
+  path: 'https://api.github.com/users/:username',
+  params: z.object({ username: z.string() }),
+  response: z.object({ login: z.string(), id: z.number() }),
+})
+
+// or split base from path
+export const StripeCharge = defineApiContract({
+  name: 'StripeCharge',
+  method: 'POST',
+  path: '/v1/charges/:id',
+  baseUrl: 'https://api.stripe.com',
+  response: z.object({ status: z.string() }),
+})
+```
+
+`useApi` / `useApiClient` handle both transparently:
+
+- path parameters are extracted from URLs at the type level (`:username` is
+  required, unknown parameters are type errors);
+- external requests always go over HTTP (`$fetch` resolves absolute URLs natively
+  on the server and in the browser) — the internal Nitro transport is never used;
+- a custom transport can be plugged in:
+
+```ts
+const api = await useApiClient({
+  transport: async (url, init) => {
+    // sign, retry, route through a proxy — anything
+    const response = await fetch(url, init as RequestInit)
+    if (!response.ok) { /* throw; it becomes a typed ApiError */ }
+    return response.json()
+  },
+})
+const user = await api.request(GitHubUser, { params: { username: 'nuxt' } })
+```
+
+Guards: external contracts are skipped from OpenAPI generation and from the
+mock server (with a warning) — they are not local operations and cannot be
+mocked server-side. Errors from external APIs are still surfaced as typed
+`ApiError` when the remote speaks the `{ error: { code, message } }` format.
+
 ## Mocking
 
 ```ts

@@ -118,6 +118,7 @@ export function defineApiContract<const TDef extends ApiContractDefinition>(
     version: definition.version,
     method: definition.method,
     path: definition.path,
+    baseUrl: definition.baseUrl,
     params: definition.params,
     query: definition.query,
     body: definition.body,
@@ -162,6 +163,32 @@ export function buildRequestPath(path: string, params: Record<string, unknown> |
     url = url.replace(`:${name}`, encodeURIComponent(String(value)))
   }
   return url
+}
+
+/** True when the contract points at an external API (absolute URL or `baseUrl`). */
+export function isExternalContract(contract: AnyApiContract): boolean {
+  if (contract.baseUrl !== undefined) return true
+  return /^https?:\/\//i.test(contract.path)
+}
+
+/**
+ * Resolves the full request URL for a contract:
+ * - internal contracts: contract path only (relative to the Nuxt origin);
+ * - external contracts: `baseUrl` joined with the path (or the absolute
+ *   `path` itself) with path parameters substituted.
+ */
+export function resolveContractUrl(
+  contract: Pick<AnyApiContract, 'path' | 'baseUrl'>,
+  params: Record<string, unknown> | undefined,
+): string {
+  if (!isExternalContract(contract as AnyApiContract)) {
+    return buildRequestPath(contract.path, params)
+  }
+  const base = contract.baseUrl?.replace(/\/+$/, '') ?? ''
+  const path = base && !/^https?:\/\//i.test(contract.path)
+    ? `${base}/${contract.path.replace(/^\/+/, '')}`
+    : contract.path
+  return buildRequestPath(path, params)
 }
 
 export type { ContractClientResponse }

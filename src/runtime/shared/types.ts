@@ -60,6 +60,12 @@ export interface ApiContractDefinition<
   version?: number
   method: TMethod
   path: TPath
+  /**
+   * External API base URL. When set, `path` is resolved against it and the
+   * request bypasses the internal Nitro transport entirely (see 0.5.0:
+   * external API contracts). `path` may also be an absolute URL itself.
+   */
+  baseUrl?: string
   /** Path parameters schema, e.g. `z.object({ id: z.string().uuid() })`. */
   params?: TParams
   /** Query parameters schema. */
@@ -104,6 +110,8 @@ export interface ApiContract<
   readonly kind: typeof API_CONTRACT_KIND
   readonly method: TMethod
   readonly path: TPath
+  /** Base URL for external API contracts (see `isExternalContract`). */
+  readonly baseUrl: string | undefined
   readonly name: string | undefined
   readonly version: number | undefined
   readonly params: TParams

@@ -11,6 +11,7 @@ import { createServer, type Server } from 'node:http'
 import type { ZodType } from 'zod'
 import type { AnyApiContract, HttpMethod } from '../runtime/shared/types'
 import { ApiError, BUILT_IN_ERROR_CODES, serializeApiError, type ApiErrorPayload } from '../runtime/shared/errors'
+import { isExternalContract } from '../runtime/shared/contract'
 import { validateContractInput, validateContractResponse } from '../server/validation'
 import { generateMockResponse } from '../runtime/shared/mock'
 
@@ -82,7 +83,15 @@ function sleep(ms: number): Promise<void> {
 
 /** Builds an in-memory matcher index over the contracts. */
 export function buildMockMatchers(contracts: AnyApiContract[]): Matcher[] {
-  return contracts.map(contract => {
+  return contracts
+    .filter((contract) => {
+      if (isExternalContract(contract)) {
+        console.warn(`[nuxt-api-contract] Mock server: external contract ${contract.name ?? contract.path} is skipped (external APIs are not mocked).`)
+        return false
+      }
+      return true
+    })
+    .map(contract => {
     const { regex, names } = pathToRegex(contract.path)
     return { contract, method: contract.method, regex, names }
   })
