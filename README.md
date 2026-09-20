@@ -336,10 +336,10 @@ and DevTools are not part of any runtime import chain (importing
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md). In short: v0.2 OpenAPI ✔, v0.3 DevTools ✔,
-v0.4 standalone mock server, v0.5 contract testing helpers ✔,
-v0.6 OpenAPI client generation, v0.7 external API contracts, v0.8 contract
-versioning, v1.0 stable API.
+See [ROADMAP.md](ROADMAP.md). In short: **0.1.0 (released)** ships core
+contracts, OpenAPI generation and the DevTools panel; next: 0.2.0 standalone
+mock server, 0.3.0 extended contract testing, 0.4.0 OpenAPI client generation,
+0.5.0 external API contracts, 0.6.0 contract versioning, 1.0.0 stable API.
 
 ## Development
 

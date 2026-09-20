@@ -1,16 +1,22 @@
 # Roadmap
 
-| Version | Scope | Status |
+Versions in this table are **npm package versions**, not milestone numbers.
+The initial release (0.1.0) shipped the first three planned milestones at once
+— core contracts, OpenAPI generation and the DevTools panel — so the plan was
+re-numbered against actual releases.
+
+| npm version | Scope | Status |
 | --- | --- | --- |
-| 0.1 | Core contracts: `defineApiContract`, `defineContractHandler`, `useApi`, `useApiClient`, validation, typed errors, SSR, tests, playground | ✅ done |
-| 0.2 | OpenAPI generation (build-time + CLI) | ✅ done |
-| 0.3 | DevTools panel (optional, no hard dependency) | ✅ done |
-| 0.4 | Standalone mock server (`nuxt-api-contract mock`), mock presets from OpenAPI | planned |
-| 0.5 | Extended contract testing (`testContract` suites, coverage report) | planned |
-| 0.6 | OpenAPI client generation for external consumers | planned |
-| 0.7 | External API contracts (custom transports, e.g. GitHub API) | planned |
-| 0.8 | Contract versioning helpers (`version`, negotiation, deprecation) | planned |
-| 1.0 | Stable public API, Zod 4 support, multipart/file upload bodies | planned |
+| 0.1.0 | Core contracts (`defineApiContract`, `defineContractHandler`, `useApi`, `useApiClient`), runtime validation, typed errors, SSR transport, contract registry, mocks, `callContract`, OpenAPI generation (build-time + CLI), optional DevTools panel, tests, playground | ✅ released |
+| 0.2.0 | Standalone mock server (`nuxt-api-contract mock`), mock presets generated from contracts / OpenAPI | planned |
+| 0.3.0 | Extended contract testing (`testContract` suites, coverage report over contracts) | planned |
+| 0.4.0 | OpenAPI client generation for external consumers | planned |
+| 0.5.0 | External API contracts (pluggable transports, e.g. GitHub API) | planned |
+| 0.6.0 | Contract versioning helpers (`version`, negotiation, deprecation) | planned |
+| 1.0.0 | Stable public API, Zod 4 support, multipart/file-upload bodies, strict SemVer | planned |
+
+Patch releases (0.x.y) carry fixes; minor releases (0.x.0) may carry features
+and documented breaking changes until 1.0.
 
 Non-goals (deliberately): ORM, database abstraction, auth framework, custom
 HTTP server/router, custom schema language, custom serializer.
