@@ -9,6 +9,7 @@
 import type { ZodType } from 'zod'
 import type { AnyApiContract } from '../runtime/shared/types'
 import { isExternalContract } from '../runtime/shared/contract'
+import { normalizeDeprecation } from '../runtime/shared/versioning'
 
 export type JsonSchemaObject = Record<string, unknown>
 
@@ -290,6 +291,14 @@ export function contractToOperation(contract: AnyApiContract, warnings: Generati
   operation.responses = responses
   if (contract.errors) {
     operation['x-error-codes'] = Object.keys(contract.errors)
+  }
+  // --- 0.6.0 contract versioning: deprecation metadata ---
+  const deprecation = normalizeDeprecation(contract.deprecated)
+  if (deprecation) {
+    operation.deprecated = true
+    if (deprecation.since !== undefined) operation['x-deprecated-since'] = deprecation.since
+    if (deprecation.sunset) operation['x-deprecated-sunset'] = deprecation.sunset
+    if (deprecation.message) operation.description = [operation.description, `Deprecated: ${deprecation.message}`].filter(Boolean).join('\n\n')
   }
   return operation
 }

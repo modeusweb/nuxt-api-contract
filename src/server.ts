@@ -20,6 +20,7 @@ export type { ValidationIssue } from './runtime/shared/format'
 export { serializeQuery, serializeQueryValue, stableStringify } from './runtime/shared/serialization'
 export type * from './runtime/shared/types'
 export { defineContractHandler, type ContractHandlerContext, type ContractHandler } from './server/defineContractHandler'
+export { defineVersionedHandlers, resolveRequestedApiVersion } from './server/versioning'
 export {
   shouldValidateResponse,
   validateContractInput,

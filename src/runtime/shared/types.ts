@@ -42,6 +42,19 @@ export interface AuthConfig {
 }
 
 /**
+ * Deprecation metadata for a contract. When set, contract handlers attach the
+ * standard `Deprecation` / `Sunset` response headers and log a dev warning.
+ */
+export interface DeprecationInfo {
+  /** Version since which the contract is deprecated. */
+  since?: number
+  /** ISO date (e.g. `2026-12-31`) after which the contract may be removed. */
+  sunset?: string
+  /** Free-form migration hint surfaced to consumers. */
+  message?: string
+}
+
+/**
  * The input accepted by `defineApiContract()`. All schema fields are optional;
  * generics capture the literal types the user provided.
  */
@@ -86,6 +99,11 @@ export interface ApiContractDefinition<
   tags?: readonly string[]
   /** Marks the endpoint as requiring authentication (informational / extension point). */
   auth?: boolean | AuthConfig
+  /**
+   * Marks the contract as deprecated (0.6.0 contract versioning). Handlers
+   * attach `Deprecation` / `Sunset` headers; OpenAPI marks the operation.
+   */
+  deprecated?: boolean | DeprecationInfo
   /** Free-form metadata consumed by tooling (DevTools, mocks, docs). */
   metadata?: Record<string, unknown>
 }
@@ -124,6 +142,8 @@ export interface ApiContract<
   readonly description: string | undefined
   readonly tags: readonly string[] | undefined
   readonly auth: boolean | AuthConfig | undefined
+  /** Deprecation info (0.6.0 contract versioning), normalized to `DeprecationInfo | true | undefined`. */
+  readonly deprecated: boolean | DeprecationInfo | undefined
   readonly metadata: Readonly<Record<string, unknown>> | undefined
 }
 

@@ -6,6 +6,7 @@ import type { AnyApiContract, MaybePromise, ContractHandlerResponse  } from '../
 import { ApiError, BUILT_IN_ERROR_CODES, createApiError, serializeApiError } from '../runtime/shared/errors'
 import type { ApiErrorPayload } from '../runtime/shared/errors'
 import { getContractMock } from '../runtime/shared/contract'
+import { getDeprecationHeaders, isDeprecatedContract } from '../runtime/shared/versioning'
 import { generateMockResponse } from '../runtime/shared/mock'
 import {
   readRuntimeConfig,
@@ -132,7 +133,17 @@ export function defineContractHandler<C extends AnyApiContract>(
       }
 
       const result = await handler(ctx as Parameters<typeof handler>[0])
-      return finalize(contract, result, runtimeConfig)
+
+      const finalized = finalize(contract, result, runtimeConfig)
+
+      // --- deprecation headers (0.6.0 contract versioning) ---
+      if (isDeprecatedContract(contract)) {
+        for (const [header, value] of Object.entries(getDeprecationHeaders(contract))) {
+          event.node.res.setHeader(header, value)
+        }
+      }
+
+      return finalized
     } catch (error) {
       return respondWithError(event, error)
     }

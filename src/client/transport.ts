@@ -27,30 +27,24 @@ export function resolveRequestOptions(options: ApiRequestOptions<AnyApiContract>
   }
 }
 
-/** Error type of the underlying `$fetch` implementation (structural, to avoid a hard runtime import). */
-interface FetchLikeError extends Error {
-  data?: unknown
-}
-
 /**
  * Converts an unknown fetch failure into a typed `ApiError`.
  * Understands the `{ error: { code, message, ... } }` payload produced by
  * contract handlers and wraps everything else into `INTERNAL_ERROR`.
  */
 export function toContractError(error: unknown): ApiError {
-  const fetchError = error as FetchLikeError | undefined
-  const payload = fetchError && typeof fetchError === 'object' ? parseApiErrorPayload(fetchError.data) : undefined
-  if (payload) {
-    return new ApiError({
-      code: payload.code,
-      message: payload.message,
-      statusCode: payload.statusCode
-        ?? (typeof (fetchError as unknown as { statusCode?: unknown }).statusCode === 'number'
-          ? (fetchError as unknown as { statusCode: number }).statusCode
-          : 500),
-      details: payload.details,
-      issues: payload.issues,
-    })
+  const errWithData = error as { data?: unknown; statusCode?: unknown }
+  if (errWithData && typeof errWithData === 'object' && 'data' in errWithData) {
+    const payload = parseApiErrorPayload(errWithData.data)
+    if (payload) {
+      return new ApiError({
+        code: payload.code,
+        message: payload.message,
+        statusCode: payload.statusCode ?? (typeof errWithData.statusCode === 'number' ? errWithData.statusCode : 500),
+        details: payload.details,
+        issues: payload.issues,
+      })
+    }
   }
   const wrapped = toApiError(error)
   return new ApiError({

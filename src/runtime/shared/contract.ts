@@ -15,36 +15,47 @@ import { API_CONTRACT_KIND } from './types'
 const REGISTRY_KEY = Symbol.for('nuxt-api-contract.registry')
 
 interface RegistryStore {
+  /** Canonical contracts keyed by `name#v<version>` (or plain `name` when unversioned). */
   contracts: Map<string, AnyApiContract>
+  /** Latest registered contract per name (used by `getContractByName`). */
+  latest: Map<string, AnyApiContract>
+}
+
+function canonicalKey(contract: Pick<AnyApiContract, 'name' | 'version'>): string {
+  return contract.version !== undefined ? `${contract.name}#v${contract.version}` : contract.name!
 }
 
 function getStore(): RegistryStore {
   const globalThis_ = globalThis as typeof globalThis & { [REGISTRY_KEY]?: RegistryStore }
   if (!globalThis_[REGISTRY_KEY]) {
-    globalThis_[REGISTRY_KEY] = { contracts: new Map() }
+    globalThis_[REGISTRY_KEY] = { contracts: new Map(), latest: new Map() }
   }
   return globalThis_[REGISTRY_KEY]
 }
 
 /**
  * Registers a named contract. Called automatically by `defineApiContract`
- * when a `name` is provided. Duplicate names are overwritten with a warning.
+ * when a `name` is provided. Same-name contracts with different `version`s
+ * are stored side by side (0.6.0 contract versioning); re-registering the
+ * same name+version overwrites the previous definition (dev HMR).
  */
 export function registerContract(contract: AnyApiContract): void {
   if (!contract.name) return
   const store = getStore()
-  const existing = store.contracts.get(contract.name)
+  const key = canonicalKey(contract)
+  const existing = store.contracts.get(key)
   if (existing && existing !== contract) {
     // Common during dev HMR; keep the newest definition.
     console.warn(
-      `[nuxt-api-contract] Duplicate contract name "${contract.name}" registered. The latest definition wins.`,
+      `[nuxt-api-contract] Duplicate contract name "${contract.name}"${contract.version !== undefined ? ` (v${contract.version})` : ''} registered. The latest definition wins.`,
     )
   }
-  store.contracts.set(contract.name, contract)
+  store.contracts.set(key, contract)
+  store.latest.set(contract.name, contract)
 }
 
 export function getContractByName(name: string): AnyApiContract | undefined {
-  return getStore().contracts.get(name)
+  return getStore().latest.get(name)
 }
 
 export function listRegisteredContracts(): AnyApiContract[] {
@@ -53,7 +64,9 @@ export function listRegisteredContracts(): AnyApiContract[] {
 
 /** Test helper: clears the registry. */
 export function clearContractRegistry(): void {
-  getStore().contracts.clear()
+  const store = getStore()
+  store.contracts.clear()
+  store.latest.clear()
 }
 
 /* ------------------------------------------------------------------ *
@@ -129,6 +142,7 @@ export function defineApiContract<const TDef extends ApiContractDefinition>(
     description: definition.description,
     tags: definition.tags ? Object.freeze([...definition.tags]) : undefined,
     auth: definition.auth,
+    deprecated: definition.deprecated,
     metadata: definition.metadata ? Object.freeze({ ...definition.metadata }) : undefined,
   } as unknown as ContractFromDefinition<TDef>
 

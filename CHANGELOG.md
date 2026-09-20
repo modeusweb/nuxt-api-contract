@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.6.0
+
+### Added
+
+- **Contract versioning (0.6.0)**:
+  - `versionedPath(version, path)` — type-safe `/api/vN` path prefixing; the
+    return type is a template literal, so `PathParams` inference keeps working
+    (`versionedPath(2, '/users/:id')` -> `/api/v2/users/:id`);
+  - versioned registry: same-name contracts with different `version`s are
+    stored side by side; `listContractVersions(name)` (sorted ascending),
+    `getContractVersion(name, version?)` (latest when omitted) and
+    `negotiateContractVersion(name, requested)` (exact match, else closest
+    lower, else oldest);
+  - `deprecated` contract field (`true` or `{ since, sunset, message }`):
+    handlers attach the standard `Deprecation` (@<since> | true), `Sunset`
+    (HTTP date) and `Warning: 299` headers; OpenAPI generation marks the
+    operation with `deprecated: true` plus `x-deprecated-since` /
+    `x-deprecated-sunset` and appends the migration hint to the description;
+  - `defineVersionedHandlers(entries, options)` — serve multiple contract
+    versions over a single Nitro route: the version is selected via the
+    `x-api-version` header or `?v=` query (`resolveRequestedApiVersion`),
+    with backward-compatible fallback to the closest lower version
+    (disable with `fallback: false`), a configurable `defaultVersion`
+    (highest by default) and `404 VERSION_NOT_FOUND` for unknown versions in
+    strict mode; per-entry `deprecated` metadata attaches the same headers;
+  - auto-imports: `versionedPath`, `getContractVersion`,
+    `negotiateContractVersion`, `listContractVersions` (app) and
+    `defineVersionedHandlers`, `resolveRequestedApiVersion` (server).
+
 ## 0.5.0
 
 ### Added

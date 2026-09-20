@@ -27,3 +27,13 @@ export { serializeQuery, serializeQueryValue, stableStringify } from './runtime/
 export type * from './runtime/shared/types'
 export { autoMockContract, generateMockResponse } from './runtime/shared/mock'
 export type { MockGenerateOptions } from './runtime/shared/mock'
+export {
+  versionedPath,
+  hasVersionedPath,
+  listContractVersions,
+  getContractVersion,
+  negotiateContractVersion,
+  normalizeDeprecation,
+  getDeprecationHeaders,
+  isDeprecatedContract,
+} from './runtime/shared/versioning'

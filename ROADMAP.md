@@ -12,7 +12,7 @@ re-numbered against actual releases.
 | 0.3.0 | Extended contract testing (`testContract` suites, coverage report over contracts) | ✅ released |
 | 0.4.0 | OpenAPI client generation for external consumers | ✅ released |
 | 0.5.0 | External API contracts (pluggable transports, e.g. GitHub API) | ✅ released |
-| 0.6.0 | Contract versioning helpers (`version`, negotiation, deprecation) | planned |
+| 0.6.0 | Contract versioning helpers (`versionedPath`, `version` registry, negotiation, deprecation) | ✅ released |
 | 1.0.0 | Stable public API, Zod 4 support, multipart/file-upload bodies, strict SemVer | planned |
 
 Patch releases (0.x.y) carry fixes; minor releases (0.x.0) may carry features

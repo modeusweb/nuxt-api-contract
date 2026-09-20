@@ -98,9 +98,15 @@ export default defineNuxtModule<ApiContractModuleOptions>({
       { from: 'nuxt-api-contract/client', name: 'createApiError' },
       { from: 'nuxt-api-contract/client', name: 'isApiError' },
       { from: 'nuxt-api-contract/client', name: 'mockContract' },
+      { from: 'nuxt-api-contract/client', name: 'versionedPath' },
+      { from: 'nuxt-api-contract/client', name: 'getContractVersion' },
+      { from: 'nuxt-api-contract/client', name: 'negotiateContractVersion' },
+      { from: 'nuxt-api-contract/client', name: 'listContractVersions' },
       { from: 'nuxt-api-contract/composables', name: 'useApi' },
       { from: 'nuxt-api-contract/composables', name: 'useApiClient' },
       { from: 'nuxt-api-contract/server', name: 'defineContractHandler' },
+      { from: 'nuxt-api-contract/server', name: 'defineVersionedHandlers' },
+      { from: 'nuxt-api-contract/server', name: 'resolveRequestedApiVersion' },
     ])
 
     // Nitro-side auto-imports (server routes can rely on these names too).
@@ -113,7 +119,7 @@ export default defineNuxtModule<ApiContractModuleOptions>({
         presets: [
           {
             from: 'nuxt-api-contract/server',
-            imports: ['defineContractHandler', 'createApiError', 'defineApiContract'],
+            imports: ['defineContractHandler', 'createApiError', 'defineApiContract', 'defineVersionedHandlers', 'resolveRequestedApiVersion', 'versionedPath'],
           },
         ],
       })

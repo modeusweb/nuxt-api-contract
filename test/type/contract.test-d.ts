@@ -2,6 +2,7 @@ import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { useApi } from '../../src/client/useApi'
 import { defineApiContract } from '../../src/client'
+import { versionedPath } from '../../src/client'
 import { defineContractHandler } from '../../src/server'
 import type { PathParams } from '../../src/shared'
 
@@ -215,5 +216,35 @@ describe('external API contracts (0.5.0)', () => {
     useApi(NestedContract, { body: { items: [], shipping: { type: 'pickup', storeId: 's' } } })
     // @ts-expect-error items must be an array of { sku, qty }
     useApi(NestedContract, { body: { items: [{ sku: 1, qty: 1 }], shipping: { type: 'pickup', storeId: 's' } } })
+  })
+})
+
+describe('contract versioning (0.6.0)', () => {
+  it('versionedPath produces a literal versioned path', () => {
+    const path = versionedPath(2, '/users/:id')
+    expectTypeOf(path).toEqualTypeOf<'/api/v2/users/:id'>()
+  })
+
+  it('PathParams still works on versioned paths', () => {
+    type Params = PathParams<ReturnType<typeof versionedPath<2, '/users/:id'>>>
+    expectTypeOf<Params>().toEqualTypeOf<{ id: string }>()
+  })
+
+  it('contracts defined with versionedPath stay fully typed', () => {
+    const GetUserV2 = defineApiContract({
+      name: 'GetUserV2',
+      version: 2,
+      method: 'GET',
+      path: versionedPath(2, '/users/:id'),
+      params: z.object({ id: z.string() }),
+      response: z.object({ id: z.string(), name: z.string() }),
+    })
+
+    const { data } = useApi(GetUserV2, { params: { id: 'abc' } })
+    expectTypeOf(data.value?.name).toEqualTypeOf<string | undefined>()
+    // @ts-expect-error id must be a string
+    useApi(GetUserV2, { params: { id: 123 } })
+    // @ts-expect-error unknown parameter
+    useApi(GetUserV2, { params: { id: 'abc', slug: 'x' } })
   })
 })

@@ -496,6 +496,92 @@ and DevTools are not part of any runtime import chain (importing
 | `nuxt-api-contract/mock` | Standalone mock server + mock generators |
 | `nuxt-api-contract/shared` | Shared primitives |
 
+## Contract versioning
+
+Contracts can be versioned with the `version` field and the `versionedPath`
+helper (0.6.0).
+
+### Versioned paths
+
+```ts
+import { versionedPath } from 'nuxt-api-contract/client'
+import { z } from 'zod'
+
+export const GetUserV2 = defineApiContract({
+  name: 'GetUser',
+  version: 2,
+  method: 'GET',
+  path: versionedPath(2, '/users/:id'), // -> /api/v2/users/:id
+  params: z.object({ id: z.string() }),
+  response: z.object({ id: z.string(), name: z.string() }),
+})
+```
+
+The return type of `versionedPath` is a template literal
+(`/api/v2/users/:id`), so path-parameter inference stays fully type-safe.
+
+### Versioned registry
+
+Same-name contracts with different versions are stored side by side:
+
+```ts
+import { getContractVersion, listContractVersions, negotiateContractVersion } from 'nuxt-api-contract/client'
+
+listContractVersions('GetUser')       // [v1, v2] sorted ascending
+getContractVersion('GetUser', 1)      // exact version, or the latest when omitted
+negotiateContractVersion('GetUser', 5) // exact -> closest lower -> oldest
+```
+
+### Deprecation
+
+```ts
+export const GetUserV1 = defineApiContract({
+  name: 'GetUser',
+  version: 1,
+  method: 'GET',
+  path: versionedPath(1, '/users/:id'),
+  params: z.object({ id: z.string() }),
+  response: z.object({ id: z.string(), name: z.string() }),
+  deprecated: { since: 2, sunset: '2027-01-01', message: 'Use /api/v2' },
+})
+```
+
+Handlers attach the standard response headers:
+
+```text
+Deprecation: @2
+Sunset: 2027-01-01
+Warning: 299 - "Use /api/v2"
+```
+
+OpenAPI generation marks such operations with `deprecated: true`,
+`x-deprecated-since` and `x-deprecated-sunset`.
+
+### Version negotiation (single route)
+
+Serve multiple versions from one Nitro route; the client picks a version
+with the `x-api-version` header or a `?v=` query parameter:
+
+```ts
+// server/api/users/[id].get.ts
+import { defineVersionedHandlers } from 'nuxt-api-contract/server'
+
+export default defineVersionedHandlers([
+  { version: 1, handler: defineContractHandler(GetUserV1, v1Handler), deprecated: { since: 2 } },
+  { version: 2, handler: defineContractHandler(GetUserV2, v2Handler) },
+], { defaultVersion: 2 })
+```
+
+Behavior:
+
+- exact version match wins;
+- otherwise the closest lower version is served (backward-compatible
+  fallback; disable with `fallback: false`);
+- unknown versions respond with `404 VERSION_NOT_FOUND` when fallback is off;
+- `defaultVersion` (highest by default) is served when the client requests
+  no version;
+- per-entry `deprecated` metadata attaches the same deprecation headers.
+
 ## Limitations
 
 - Zod 3.x only (`^3.23`); Zod 4 support is on the roadmap.
