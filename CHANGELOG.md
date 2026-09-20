@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+
+- **`testContract()` suites**: framework-agnostic contract test helper with
+  `expectSuccess`, `expectError`, `expectValidationError`,
+  `expectResponseValidationError` and `validateResponse` — uses `callContract`
+  under the hood so the full pipeline (validation → handler → response
+  validation) is exercised without an HTTP server.
+- **Contract coverage**: `startContractCoverage()` / `stopContractCoverage()` /
+  `getContractCoverage()` / `formatContractCoverage()` — tracks which registered
+  contracts have been exercised and prints a human-readable report.
+- New unit suite for `testContract` and coverage.
+
 ## 0.2.0
 
 ### Added

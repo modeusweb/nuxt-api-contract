@@ -9,7 +9,7 @@ re-numbered against actual releases.
 | --- | --- | --- |
 | 0.1.0 | Core contracts (`defineApiContract`, `defineContractHandler`, `useApi`, `useApiClient`), runtime validation, typed errors, SSR transport, contract registry, mocks, `callContract`, OpenAPI generation (build-time + CLI), optional DevTools panel, tests, playground | ✅ released |
 | 0.2.0 | Standalone mock server (`nuxt-api-contract mock`), mock presets generated from contracts / OpenAPI | ✅ released |
-| 0.3.0 | Extended contract testing (`testContract` suites, coverage report over contracts) | planned |
+| 0.3.0 | Extended contract testing (`testContract` suites, coverage report over contracts) | ✅ released |
 | 0.4.0 | OpenAPI client generation for external consumers | planned |
 | 0.5.0 | External API contracts (pluggable transports, e.g. GitHub API) | planned |
 | 0.6.0 | Contract versioning helpers (`version`, negotiation, deprecation) | planned |

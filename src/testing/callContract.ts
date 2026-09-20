@@ -14,6 +14,7 @@ import type {
 import { ApiError } from '../runtime/shared/errors'
 import { validateContractInput, validateContractResponse } from '../server/validation'
 import type { ContractHandler } from '../server/defineContractHandler'
+import { recordCoverageCall } from './coverage'
 
 /** Marker set by `defineContractHandler` on the returned event handler. */
 const CONTRACT_HANDLER_META = Symbol.for('nuxt-api-contract.contractHandlerMeta')
@@ -85,8 +86,10 @@ export async function callContract<C extends AnyApiContract>(
       ? validateContractResponse(contract, contract.response, rawResponse) as ContractClientResponse<C>
       : rawResponse as ContractClientResponse<C>
 
+    recordCoverageCall(contract, true)
     return { data, error: null }
   } catch (error) {
+    recordCoverageCall(contract, false)
     return {
       data: null,
       error: error instanceof ApiError ? error : new ApiError({ code: 'INTERNAL_ERROR', message: String(error) }),

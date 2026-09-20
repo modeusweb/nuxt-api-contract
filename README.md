@@ -282,9 +282,74 @@ expect(error).toBeNull()
 expect(data.id).toBe('1')
 ```
 
-Validation → handler → response-validation run exactly like in production.
-See `test/integration/playground.test.ts` for full-stack tests with
+`callContract` runs validation → handler → response-validation exactly like
+production. See `test/integration/playground.test.ts` for full-stack tests with
 `@nuxt/test-utils`.
+
+### Contract test suites
+
+`testContract()` wraps a contract + handler into an assertion suite. It is
+framework-agnostic (works with Vitest, Jest, `node:assert` — any runner that
+treats thrown errors as failures):
+
+```ts
+import { testContract } from 'nuxt-api-contract/testing'
+
+const suite = testContract(GetUser, handler)
+
+it('returns the user', async () => {
+  const data = await suite.expectSuccess({ params: { id: '1' } })
+  expect(data.name).toBe('John')
+})
+
+it('returns 404 for missing user', async () => {
+  const error = await suite.expectError(
+    { params: { id: 'missing' } },
+    'USER_NOT_FOUND',
+    404,
+  )
+})
+```
+
+Available assertions:
+
+| method | meaning |
+| --- | --- |
+| `expectSuccess(input?)` | call succeeds; returns typed response data |
+| `expectError(input?, code?, statusCode?)` | call fails with (optionally) the given code/status |
+| `expectValidationError(input?, issuePaths?)` | fails with `VALIDATION_ERROR`; optionally checks issue paths |
+| `expectResponseValidationError(input, badResponse)` | handler returns bad data caught by response validation |
+| `validateResponse(value)` | validates an arbitrary value against the contract's response schema |
+
+### Contract coverage
+
+Record which registered contracts are exercised in tests and print a report:
+
+```ts
+import {
+  startContractCoverage,
+  stopContractCoverage,
+  formatContractCoverage,
+} from 'nuxt-api-contract/testing'
+
+beforeAll(() => startContractCoverage())
+afterAll(() => console.log(formatContractCoverage(stopContractCoverage())))
+```
+
+Output:
+
+```
+Contract coverage
+  5/6 contracts covered (83%)
+Covered:
+  ✓ GET    /api/users/:id                    3 ok
+  ✓ POST   /api/users                        2 ok (1 failed)
+Uncovered:
+  ✗ DELETE /api/users/:id  (DeleteUser)
+```
+
+Coverage is driven by the same `callContract` pipeline, so it works for both
+unit tests and integration tests.
 
 ## DevTools
 
