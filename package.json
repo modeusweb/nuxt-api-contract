@@ -1,6 +1,6 @@
 {
   "name": "nuxt-api-contract",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Type-safe API contracts between Nitro server routes and the Nuxt client.",
   "type": "module",
   "license": "MIT",
@@ -55,6 +55,10 @@
     "./openapi": {
       "types": "./dist/openapi.d.mts",
       "import": "./dist/openapi.mjs"
+    },
+    "./clientgen": {
+      "types": "./dist/clientgen.d.mts",
+      "import": "./dist/clientgen.mjs"
     },
     "./mock": {
       "types": "./dist/mock.d.mts",

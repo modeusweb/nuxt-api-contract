@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+
+- **Generated external client**: `npx nuxt-api-contract client <entry>
+  --output client.ts` produces a standalone, dependency-free TypeScript
+  client (global fetch) with typed `Params` / `Query` / `Body` / `Response`
+  per contract, path building, query serialization, dynamic headers and
+  `ContractClientError` (code / statusCode / issues parsed from the unified
+  error format). New package export: `nuxt-api-contract/clientgen`
+  (`generateClientSource`, `emitTsType`, `emitNamedType`).
+- Emission of TS types from Zod schemas follows the same best-effort + warning
+  policy as the OpenAPI layer (transform / preprocess degrade to the underlying
+  type, Date/bigint serialize as strings).
+- New unit suite (17 tests: type emission, generation, syntax validation via
+  the TypeScript parser) and an e2e integration suite running the generated
+  client against the mock server.
+
 ## 0.3.0
 
 ### Added

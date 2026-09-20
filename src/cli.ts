@@ -4,6 +4,8 @@
  *
  * Commands:
  *   nuxt-api-contract openapi <entry> [--output openapi.json] [--title ...] [--version ...]
+ *   nuxt-api-contract client <entry> [--output contract-client.ts] [--client-name createClient]
+ *   nuxt-api-contract mock <entry> [--port 4000] [--seed 42] [--lenient]
  *
  * `<entry>` is a TypeScript/JavaScript module that exports contracts either
  * as a default array or as named exports (every export with
@@ -96,6 +98,28 @@ async function main(): Promise<void> {
     return
   }
 
+  if (command === 'client') {
+    const entry = positional[0]
+    if (!entry || !existsSync(entry)) {
+      console.error('[nuxt-api-contract] Usage: nuxt-api-contract client <entry> [--output client.ts] [--client-name createClient]')
+      process.exitCode = 1
+      return
+    }
+    const contracts = await loadContractsFromEntry(resolve(entry))
+    const { generateClientSource } = await import('./clientgen/generator')
+    const { source, warnings } = generateClientSource(contracts, {
+      factoryName: typeof flags['client-name'] === 'string' ? flags['client-name'] : undefined,
+    })
+    for (const warning of warnings) {
+      console.warn(`[nuxt-api-contract] Client generation warning (${warning.contract}): ${warning.message}`)
+    }
+    const output = typeof flags.output === 'string' ? flags.output : 'contract-client.ts'
+    mkdirSync(dirname(resolve(output)), { recursive: true })
+    writeFileSync(resolve(output), source, 'utf8')
+    console.log(`[nuxt-api-contract] Typed client with ${contracts.length} operation(s) written to ${output}`)
+    return
+  }
+
   if (command === 'mock') {
     const entry = positional[0]
     if (!entry || !existsSync(entry)) {
@@ -129,7 +153,7 @@ async function main(): Promise<void> {
     return
   }
 
-  console.error(`[nuxt-api-contract] Unknown command "${command ?? ''}". Available commands: openapi, mock`)
+  console.error(`[nuxt-api-contract] Unknown command "${command ?? ''}". Available commands: openapi, client, mock`)
   process.exitCode = 1
 }
 

@@ -9,6 +9,7 @@ export default defineBuildConfig({
     'src/server',
     'src/testing',
     'src/openapi',
+    'src/clientgen',
     'src/mock',
     'src/cli',
     // Runtime files referenced by path (Nitro routes served via

@@ -234,6 +234,38 @@ Zod → OpenAPI conversion is a separate abstraction layer
 preprocess) degrade to the closest representable schema with a warning —
 generation never fails.
 
+### Generated external client
+
+Generate a standalone, dependency-free TypeScript client from contracts for
+consumers outside your Nuxt app (another frontend, a script, a backend service):
+
+```bash
+npx nuxt-api-contract client contracts/index.ts --output client.ts
+# --client-name createApiClient to rename the factory function
+```
+
+The generated file uses only global `fetch`, has zero imports, typed
+`Params`/`Query`/`Body`/`Response` per contract, path building, query
+serialization, dynamic headers and a `ContractClientError` with
+`code` / `statusCode` parsed from the unified error format:
+
+```ts
+import { createClient, ContractClientError } from './client'
+
+const api = createClient({ baseUrl: 'https://api.example.com', headers: () => ({ authorization: token() }) })
+
+const user = await api.getUser({ params: { id: '1' } }) // typed as GetUserResponse
+try {
+  await api.createUser({ body: { name: 'John', email: 'john@example.com' } })
+} catch (error) {
+  if (error instanceof ContractClientError) console.error(error.code, error.statusCode)
+}
+```
+
+Programmatic API: `import { generateClientSource } from 'nuxt-api-contract/clientgen'`.
+Like the OpenAPI layer, non-representable Zod features (`transform`, etc.)
+degrade to the closest type with a warning instead of failing.
+
 ## Mocking
 
 ```ts
