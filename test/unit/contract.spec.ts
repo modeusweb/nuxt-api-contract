@@ -51,6 +51,29 @@ describe('defineApiContract', () => {
     clearContractRegistry()
     expect(listRegisteredContracts()).toHaveLength(0)
   })
+
+  it('re-registers silently but warns on genuine conflicts', () => {
+    clearContractRegistry()
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (message?: unknown) => { warnings.push(String(message)) }
+    try {
+      // Same name + same operation (dev HMR, build-time load then runtime).
+      defineApiContract({ name: 'Reload', method: 'GET', path: '/api/reload', response: z.object({ ok: z.boolean() }) })
+      defineApiContract({ name: 'Reload', method: 'GET', path: '/api/reload', response: z.object({ ok: z.boolean() }) })
+      expect(warnings).toEqual([])
+
+      // Same name + a different operation is a real conflict.
+      defineApiContract({ name: 'Reload', method: 'POST', path: '/api/reload' })
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]).toContain('Duplicate contract name "Reload"')
+      // The latest definition wins.
+      expect(getContractByName('Reload')?.method).toBe('POST')
+    } finally {
+      console.warn = originalWarn
+      clearContractRegistry()
+    }
+  })
 })
 
 describe('mockContract', () => {

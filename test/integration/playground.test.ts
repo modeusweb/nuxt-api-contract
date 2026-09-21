@@ -81,6 +81,59 @@ describe('playground integration', async () => {
     expect(Object.keys(paths)).toContain('/api/users/{id}')
   })
 
+  it('uploads files through the multipart contract (1.0.0)', async () => {
+    const form = new FormData()
+    form.append('file', new File(['avatar-bytes'], 'avatar.png', { type: 'image/png' }))
+    form.append('caption', 'profile photo')
+    form.append('crop', 'true')
+    form.append('width', '512')
+
+    const uploaded = await $fetch('/api/users/1/avatar', { method: 'POST', body: form })
+    expect(uploaded).toMatchObject({
+      id: '1',
+      fileName: 'avatar.png',
+      size: 12,
+      contentType: 'image/png',
+      caption: 'profile photo',
+      crop: true,
+      width: 512,
+    })
+  })
+
+  it('validates multipart requests (missing file, bad coercion)', async () => {
+    const missing = new FormData()
+    missing.append('caption', 'no file here')
+    const missingResponse = await fetch('/api/users/1/avatar', { method: 'POST', body: missing })
+    expect(missingResponse.status).toBe(400)
+    const missingPayload = (await missingResponse.json()) as { error?: { code?: string } }
+    expect(missingPayload.error?.code).toBe('VALIDATION_ERROR')
+
+    const badWidth = new FormData()
+    badWidth.append('file', new File(['x'], 'a.png', { type: 'image/png' }))
+    badWidth.append('width', 'not-a-number')
+    const badResponse = await fetch('/api/users/1/avatar', { method: 'POST', body: badWidth })
+    expect(badResponse.status).toBe(400)
+    const badPayload = (await badResponse.json()) as { error?: { code?: string, message?: string } }
+    expect(badPayload.error?.code).toBe('VALIDATION_ERROR')
+    expect(badPayload.error?.message).toContain('body.width')
+  })
+
+  it('propagates handler errors from multipart endpoints', async () => {
+    const form = new FormData()
+    form.append('file', new File(['x'], 'a.png', { type: 'image/png' }))
+    const response = await fetch('/api/users/missing/avatar', { method: 'POST', body: form })
+    expect(response.status).toBe(404)
+    const payload = (await response.json()) as { error?: { code?: string } }
+    expect(payload.error?.code).toBe('USER_NOT_FOUND')
+  })
+
+  it('documents multipart bodies in OpenAPI', async () => {
+    const doc = await $fetch('/_api-contracts/openapi.json')
+    const paths = (doc as { paths: Record<string, Record<string, { requestBody?: { content?: Record<string, unknown> } }>> }).paths
+    const upload = paths['/api/users/{id}/avatar']!.post!
+    expect(Object.keys(upload.requestBody?.content ?? {})).toContain('multipart/form-data')
+  })
+
   it('renders SSR pages without errors', async () => {
     const html = await $fetch('/users/1')
     expect(String(html)).toContain('John Doe')

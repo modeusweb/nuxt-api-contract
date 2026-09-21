@@ -13,9 +13,49 @@ describe('toValidationIssues', () => {
     expect(issues[0]!.path).toContain('limit')
     expect(issues[0]!.message).toBeTruthy()
   })
+
+  it('exposes machine-readable issue codes (Zod 3 and Zod 4)', () => {
+    const result = schema.safeParse({ limit: 'nope', name: 1 })
+    const issues = toValidationIssues((result as { error: z.ZodError }).error)
+    expect(issues.length).toBe(2)
+    for (const issue of issues) {
+      expect(typeof issue.code).toBe('string')
+      expect(issue.code!.length).toBeGreaterThan(0)
+    }
+    // A surviving expectation is reported in the structured form.
+    expect(issues.find(issue => issue.path === 'limit')).toBeDefined()
+  })
 })
 
 describe('formatValidationMessage', () => {
+  it('prefixes the subject exactly once', () => {
+    const message = formatValidationMessage({
+      subject: 'query',
+      method: 'GET',
+      path: '/api/users',
+      issues: [
+        { path: 'limit', message: 'Invalid input', expected: 'number' },
+        { path: 'query.limit', message: 'Invalid input', expected: 'number' },
+        { path: '(root)', message: 'Invalid input', expected: 'object' },
+      ],
+    })
+    expect(message).toContain('\nquery.limit:')
+    expect(message).not.toContain('query.query.limit')
+    expect(message).toContain('\nquery:')
+  })
+
+  it('prints the Zod 4 message verbatim when there is no structured expectation', () => {
+    const message = formatValidationMessage({
+      subject: 'body',
+      method: 'POST',
+      path: '/api/users',
+      issues: [{ path: 'width', message: 'Too small: expected number to be >0', code: 'too_small' }],
+    })
+    expect(message).toContain('body.width:')
+    expect(message).toContain('Too small: expected number to be >0')
+    expect(message).not.toContain('Expected Too small')
+  })
+
   it('builds a friendly multi-line message', () => {
     const message = formatValidationMessage({
       subject: 'query',

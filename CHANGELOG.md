@@ -1,5 +1,96 @@
 # Changelog
 
+## 1.0.0
+
+Stable release. The public API is frozen and documented in
+[`docs/public-api.md`](docs/public-api.md); SemVer from here on is strict
+(patch = fixes, minor = additions, major = breaking changes).
+
+### Added
+
+- **Zod 4 support** (Zod 3 is still supported; peer range
+  `zod: ^3.23.0 || ^4.0.0`). Zod 4 changed its internals substantially, so all
+  schema reading was moved behind one new abstraction layer,
+  `src/runtime/shared/zod-schema.ts` (`describeZodSchema`, `unwrapZodSchema`,
+  `zodSchemaKind`):
+  - `typeName` (Zod 3) and `type` (Zod 4) are normalized, including the Zod 4
+    `$ZodCheck` model (`min_length`/`greater_than`/`string_format`/…), Zod 4
+    format schemas (`z.email()`, `z.url()`, `z.iso.datetime()`), `def.shape` as
+    a plain object, `def.catchall` strict/loose objects and `pipe` in/out
+    nodes;
+  - mock generation, OpenAPI generation and TypeScript client emission now
+    consume the normalized descriptors instead of `_def`, so both majors
+    behave identically;
+  - contract input types use Zod's own `input`/`output` helpers. Because Zod 4
+    types the input of `z.coerce.*`/`z.preprocess()` as `unknown`, a
+    conservative repair restores Zod 3 semantics for coerced fields, keeping
+    `z.coerce.number()` query parameters type-safe (see the README
+    "Zod version support" section for the exact rules);
+  - validation issues carry the machine-readable Zod `code` and no longer
+    double-prefix the subject (`query.query.limit` → `query.limit`); Zod 4
+    messages are reported verbatim when there is no structured expectation.
+- **Multipart / file-upload bodies**: `multipartSchema({ file: z.file(), … })`
+  declares a `multipart/form-data` body.
+  - client: the body is serialized to `FormData` (files appended as-is, arrays
+    repeated, nested objects JSON-encoded, `Date`/`bigint` stringified) and
+    passed to `$fetch` untouched (ofetch never JSON-encodes `FormData`, so the
+    runtime sets the multipart boundary);
+  - server: `defineContractHandler` reads the form parts via
+    `readMultipartFormData`, builds a real `File` (falling back to a
+    `{ filename, type, size, data }` descriptor with a warning on runtimes
+    without `File`) and coerces text fields against the schema —
+    numbers/booleans/bigints/dates, arrays, JSON-encoded nested objects and
+    unions — before validation;
+  - new `bodyFormat: 'auto' | 'json' | 'multipart'` contract option
+    (`'auto'` is the default and detects the schema marker); the resolved value
+    is exposed as `contract.bodyFormat`;
+  - OpenAPI documents multipart bodies with `multipart/form-data` content and
+    `z.file()` as `{ type: 'string', format: 'binary' }`;
+  - new package exports: `multipartSchema`, `isMultipartSchema`,
+    `resolveBodyFormat`, `serializeMultipartBody`, `MULTIPART_SCHEMA`,
+    `type BodyFormat` (client) and `readMultipartBody`, `coerceMultipartValue`,
+    `type MultipartFileDescriptor` (server).
+- Playground: `POST /api/users/:id/avatar` (multipart) contract, handler, page
+  form and end-to-end integration tests (upload, missing file, bad coercion,
+  handler errors, OpenAPI content type).
+- New unit suites: `zod-schema.spec.ts` (runs every expectation against Zod 4
+  **and** Zod 3 through `zod/v3`), `multipart.spec.ts`,
+  `serialization.spec.ts`; new type tests for multipart bodies.
+- Documentation: `docs/public-api.md` (frozen 1.0.0 surface + SemVer policy).
+
+### Changed
+
+- `useApiClient()` is now **synchronous** (it returns the client instead of a
+  promise), matching the documented usage `const api = useApiClient(); await
+  api.request(…)`. The Nuxt app instance and the SSR request event are captured
+  synchronously, so the same client works inside actions, stores and plugins
+  without a Nuxt context.
+- `useApi()` creates its client during setup instead of inside the async
+  handler — same SSR-internal Nitro transport, no hydration mismatch, and no
+  reliance on the Nuxt context surviving `await`.
+- Mock generation now emits RFC 4122 v4 UUIDs (version **and** variant
+  nibbles), which Zod 4 validates strictly; mocks are still deterministic.
+- OpenAPI: `null` schemas are emitted as `nullable: true` + `enum: [null]`
+  (valid OpenAPI 3.0.3), exclusive bounds use the 3.0 `exclusiveMinimum/
+  Maximum: true` form, arrays/sets emit `minItems`/`maxItems`/`uniqueItems`,
+  `z.bigint()` is documented as `{ type: 'string', format: 'int64' }`,
+  discriminated unions carry `discriminator.propertyName`, and strict objects
+  emit `additionalProperties: false`.
+- Node engines: `>=18.20.0` (unchanged; file uploads prefer a runtime with a
+  global `File`, i.e. Node ≥ 20).
+- `nuxt-api-contract/clientgen` no longer exports the Zod-3-only helpers
+  `zodDef`/`objectShape`; use the descriptors from `zod-schema.ts` internally
+  or the public `emitTsType`/`emitNamedType`/`generateClientSource` helpers.
+
+### Fixed
+
+- All mock generation, OpenAPI generation and client emission worked only with
+  Zod 3 internals; with Zod 4 installed they silently degraded to warnings and
+  empty schemas.
+- Contract type inference returned Zod internals (`$ZodObjectInternals<…>`)
+  instead of the schema output with Zod 4.
+- Validation messages could repeat the subject prefix (`query.query.limit`).
+
 ## 0.6.0
 
 ### Added

@@ -1,4 +1,5 @@
-import type { ZodType } from 'zod'
+import type { ZodType, input as ZodInput, output as ZodOutput } from 'zod'
+import type { BodyFormat } from './multipart'
 
 /**
  * Marker used to identify contract objects at runtime (and in the registry).
@@ -85,6 +86,11 @@ export interface ApiContractDefinition<
   query?: TQuery
   /** Request body schema. */
   body?: TBody
+  /**
+   * Body transport (1.0.0). `'auto'` (default) detects `multipartSchema()`
+   * bodies, `'json'` forces JSON and `'multipart'` forces `FormData`.
+   */
+  bodyFormat?: BodyFormat
   /** Request headers schema (validated against raw header values). */
   headers?: THeaders
   /** Successful response schema. */
@@ -135,6 +141,8 @@ export interface ApiContract<
   readonly params: TParams
   readonly query: TQuery
   readonly body: TBody
+  /** Resolved body transport (`'json'` or `'multipart'`). */
+  readonly bodyFormat: Exclude<BodyFormat, 'auto'>
   readonly headers: THeaders
   readonly response: TResponse
   readonly errors: Readonly<Record<string, ZodType>> | undefined
@@ -168,9 +176,63 @@ export type ContractFromDefinition<TDef extends ApiContractDefinition> = ApiCont
 >
 
 /**
- * Input type produced by a Zod schema, or an empty object when absent.
+ * Types that must never be structurally rewritten when repairing inputs
+ * (`Date`, `File`, `Map`, … keep their identity).
  */
-export type ExtractSchemaInput<T> = T extends ZodType<any, any, infer Input> ? Input : Record<never, never>
+type NonPlainInputType =
+  | ((...args: never[]) => unknown)
+  | Date
+  | RegExp
+  | Error
+  | File
+  | Blob
+  | ArrayBuffer
+  | ArrayBufferView
+  | Map<unknown, unknown>
+  | Set<unknown>
+  | WeakMap<object, unknown>
+  | WeakSet<object>
+  | Promise<unknown>
+  | URL
+  | URLSearchParams
+
+/**
+ * Repairs a Zod **input** type so that coercing schemas keep Zod 3 semantics.
+ *
+ * Zod 4 types the input of `z.coerce.*` (and of `z.preprocess()`) as
+ * `unknown`, while Zod 3 typed it as the coerced value. Without this repair a
+ * query like `z.coerce.number()` would accept anything from the client, losing
+ * compile-time safety for the most common query pattern.
+ *
+ * The repair is deliberately conservative:
+ * - fields whose input is `unknown` take the schema *output* type;
+ * - unions distribute, so discriminated unions keep their members;
+ * - arrays, tuples and non-plain objects (Date, File, Map, …) are left as-is;
+ * - nested objects are not rewritten recursively (only their top-level
+ *   `unknown` fields would need it, which cannot happen: a nested object field
+ *   is an object, not `unknown`).
+ */
+type RepairZodInput<TInput, TOutput> = unknown extends TInput
+  ? (unknown extends TOutput ? TInput : TOutput)
+  : TInput extends NonPlainInputType
+    ? TInput
+    : TInput extends readonly unknown[]
+      ? TInput
+      : TInput extends object
+        ? { [K in keyof TInput]: unknown extends TInput[K] ? (K extends keyof TOutput ? TOutput[K] : TInput[K]) : TInput[K] }
+        : TInput
+
+/**
+ * Input type produced by a Zod schema, or an empty object when absent.
+ *
+ * Uses Zod's own `input`/`output` helpers (available in Zod 3 and Zod 4) —
+ * Zod 4's `ZodType<Output, Input, Internals>` declares the first two
+ * parameters as `any`, so structural `infer` extraction silently yields the
+ * internals type instead of the schema output.
+ */
+export type ExtractSchemaInput<T> = T extends ZodType
+  ? RepairZodInput<ZodInput<T>, ZodOutput<T>>
+  : Record<never, never>
 
 /**
  * Any contract, with all generics widened. Used as a variance-friendly bound.
@@ -261,5 +323,6 @@ export type ResolvedApiRequestOptions = {
 
 /**
  * Output type produced by a Zod schema, or `unknown` when absent.
+ * See `ExtractSchemaInput` for why Zod's own helpers are used.
  */
-export type ExtractSchemaOutput<T> = T extends ZodType<infer Output, any, any> ? Output : unknown
+export type ExtractSchemaOutput<T> = T extends ZodType ? ZodOutput<T> : unknown

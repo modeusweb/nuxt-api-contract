@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineApiContract } from 'nuxt-api-contract/client'
+import { defineApiContract, multipartSchema } from 'nuxt-api-contract/client'
 
 export const UserSchema = z.object({
   id: z.string(),
@@ -81,5 +81,40 @@ export const DeleteUserContract = defineApiContract({
   response: z.object({ ok: z.boolean() }),
   errors: {
     USER_NOT_FOUND: z.object({ error: z.object({ code: z.literal('USER_NOT_FOUND'), message: z.string() }) }),
+  },
+})
+
+/**
+ * Multipart (file upload) contract — 1.0.0.
+ *
+ * The body is sent as `FormData`; the server reads `multipart/form-data` and
+ * coerces the text fields (`z.coerce.number()`, `z.coerce.boolean()`) before
+ * validation. File fields receive a real `File` instance.
+ */
+export const UploadAvatarContract = defineApiContract({
+  name: 'UploadAvatar',
+  method: 'POST',
+  path: '/api/users/:id/avatar',
+  summary: 'Upload a user avatar',
+  tags: ['Users'],
+  params: z.object({ id: z.string().min(1) }),
+  body: multipartSchema({
+    file: z.file(),
+    caption: z.string().max(120).optional(),
+    crop: z.coerce.boolean().optional(),
+    width: z.coerce.number().int().positive().max(4096).optional(),
+  }),
+  response: z.object({
+    id: z.string(),
+    fileName: z.string(),
+    size: z.number().int(),
+    contentType: z.string(),
+    caption: z.string().nullable(),
+    crop: z.boolean(),
+    width: z.number().nullable(),
+  }),
+  errors: {
+    USER_NOT_FOUND: z.object({ error: z.object({ code: z.literal('USER_NOT_FOUND'), message: z.string() }) }),
+    EMPTY_FILE: z.object({ error: z.object({ code: z.literal('EMPTY_FILE'), message: z.string() }) }),
   },
 })

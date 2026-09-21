@@ -1,9 +1,14 @@
 /**
- * Deterministic mock-data generation from contract schemas (client-safe:
- * only depends on zod). Used by `autoMockContract`, the `apiContract.mocks:
- * 'auto'` mode and the standalone mock server.
+ * Deterministic mock-data generation from contract schemas (client-safe: only
+ * depends on zod). Used by `autoMockContract`, the `apiContract.mocks: 'auto'`
+ * mode and the standalone mock server.
+ *
+ * Schema introspection goes through `zod-schema.ts`, so Zod 3 and Zod 4 are
+ * supported identically.
  */
 import type { ZodType } from 'zod'
+import { unwrapZodSchema } from './zod-schema'
+import type { ZodCheck, ZodCheckKind } from './zod-schema'
 import type { AnyApiContract, ContractHandlerResponse } from './types'
 import { mockContract, type ContractMock } from './contract'
 
@@ -12,33 +17,11 @@ export interface MockGenerateOptions {
   seed?: number
 }
 
-interface RngContext {
+/** Randomness context used while walking a schema (exported for tooling). */
+export interface RngContext {
   rng: () => number
   depth: number
 }
-
-interface MockZodDef {
-  typeName?: string
-  shape?: Record<string, ZodType> | (() => Record<string, ZodType>)
-  innerType?: ZodType
-  schema?: ZodType
-  options?: ZodType[]
-  value?: unknown
-  values?: unknown[]
-  items?: ZodType[]
-  valueType?: ZodType
-  type?: ZodType
-  checks?: Array<{ kind?: string, value?: unknown }>
-  effect?: { type?: string }
-  left?: ZodType
-  right?: ZodType
-  defaultValue?: unknown
-}
-
-function zodDef(schema: ZodType): MockZodDef {
-  return (schema as unknown as { _def: MockZodDef })._def
-}
-
 /** Mulberry32 — small, fast, deterministic PRNG. */
 export function createRng(seed: number): () => number {
   let state = seed >>> 0
@@ -76,28 +59,53 @@ const WORDS = ['mock', 'demo', 'sample', 'alpha', 'beta', 'gamma']
 const MOCK_EPOCH = Date.UTC(2024, 0, 1)
 const YEAR_MS = 365 * 24 * 3600 * 1000
 
+const HEX = '0123456789abcdef'
+const VARIANT = '89ab'
+
+/**
+ * Generates an RFC 4122 version-4 UUID. Zod 4 validates both the version and
+ * the variant nibbles, so the shape must be exact.
+ */
 function mockUuid(rng: () => number): string {
-  const hex = () => Math.floor(rng() * 0xFFFF).toString(16).padStart(4, '0')
-  return `${hex()}${hex()}-4${hex().slice(1)}-8${hex().slice(1)}-4${hex().slice(1)}-${hex()}${hex()}${hex()}`
+  const hex = (length: number): string => {
+    let out = ''
+    for (let i = 0; i < length; i++) out += HEX.charAt(Math.floor(rng() * 16))
+    return out
+  }
+  return `${hex(8)}-${hex(4)}-4${hex(3)}-${VARIANT.charAt(Math.floor(rng() * 4))}${hex(3)}-${hex(12)}`
+}
+
+
+/* ------------------------------------------------------------------ *
+ * Check helpers
+ * ------------------------------------------------------------------ */
+
+function numericCheck(checks: ZodCheck[], kind: ZodCheckKind): number | undefined {
+  const check = checks.find(candidate => candidate.kind === kind)
+  return typeof check?.value === 'number' ? check.value : undefined
+}
+
+function hasCheck(checks: ZodCheck[], kind: ZodCheckKind): boolean {
+  return checks.some(check => check.kind === kind)
+}
+
+function hasFormat(checks: ZodCheck[], format: string): boolean {
+  return checks.some(check => check.kind === 'format' && check.format === format)
 }
 
 /** Generates a plausible string for a field, guided by its name and checks. */
-function mockString(key: string, def: MockZodDef, ctx: RngContext): string {
+function mockString(key: string, checks: ZodCheck[], ctx: RngContext): string {
   const lower = key.toLowerCase()
-  const checks = def.checks ?? []
-  const check = (kind: string) => checks.find(c => c.kind === kind)?.value as number | undefined
-  const format = checks.find(c => c.kind === 'format')?.value as string | undefined
-  const hasCheck = (kind: string) => checks.some(c => c.kind === kind)
 
   let value: string
-  if (format === 'email' || hasCheck('email') || lower.includes('email')) {
+  if (hasFormat(checks, 'email') || lower.includes('email')) {
     const name = pick(FIRST_NAMES, ctx.rng).toLowerCase()
     value = `${name}.${pick(LAST_NAMES, ctx.rng).toLowerCase()}@example.com`
-  } else if (hasCheck('uuid')) {
+  } else if (hasFormat(checks, 'uuid') || lower.endsWith('uuid')) {
     value = mockUuid(ctx.rng)
-  } else if (hasCheck('datetime') || lower === 'createdat' || lower === 'updatedat' || lower.endsWith('date') || lower.endsWith('_at')) {
+  } else if (hasFormat(checks, 'datetime') || hasFormat(checks, 'date') || lower === 'createdat' || lower === 'updatedat' || lower.endsWith('date') || lower.endsWith('_at')) {
     value = new Date(MOCK_EPOCH - Math.floor(ctx.rng() * YEAR_MS)).toISOString()
-  } else if (hasCheck('url') || lower.endsWith('url') || lower.endsWith('link')) {
+  } else if (hasFormat(checks, 'url') || lower.endsWith('url') || lower.endsWith('link')) {
     value = `https://example.com/${pick(WORDS, ctx.rng)}/${intBetween(ctx.rng, 1, 999)}`
   } else if (lower.includes('phone') || lower.includes('tel')) {
     value = `+1 555 010 ${intBetween(ctx.rng, 1000, 9999)}`
@@ -118,23 +126,22 @@ function mockString(key: string, def: MockZodDef, ctx: RngContext): string {
     value = `${pick(WORDS, ctx.rng)}-${intBetween(ctx.rng, 1, 9999)}`
   }
 
-  const minLength = check('min')
+  const minLength = numericCheck(checks, 'min') ?? numericCheck(checks, 'length')
   if (minLength !== undefined) {
     while (value.length < minLength) value += '-filler'
   }
-  const maxLength = check('max')
+  const maxLength = numericCheck(checks, 'max') ?? numericCheck(checks, 'length')
   if (maxLength !== undefined && value.length > maxLength) {
     value = value.slice(0, maxLength)
   }
   return value
 }
 
-function mockNumber(def: MockZodDef, ctx: RngContext): number {
-  const checks = def.checks ?? []
-  const isInt = checks.some(c => c.kind === 'int')
-  const min = (checks.find(c => c.kind === 'min')?.value as number | undefined) ?? 1
-  const max = (checks.find(c => c.kind === 'max')?.value as number | undefined) ?? 100
-  const multipleOf = checks.find(c => c.kind === 'multipleOf')?.value as number | undefined
+function mockNumber(checks: ZodCheck[], ctx: RngContext): number {
+  const isInt = hasCheck(checks, 'int')
+  const min = numericCheck(checks, 'min') ?? 1
+  const max = numericCheck(checks, 'max') ?? 100
+  const multipleOf = numericCheck(checks, 'multipleOf')
   if (multipleOf !== undefined && multipleOf > 0) {
     const minMul = Math.max(1, Math.ceil(min / multipleOf))
     const maxMul = Math.max(minMul, Math.floor(max / multipleOf))
@@ -147,27 +154,48 @@ function singular(key: string): string {
   return key.endsWith('s') && key.length > 1 ? key.slice(0, -1) : key
 }
 
+
 /** Walks a Zod schema and produces a plausible mock value. */
 export function generateMockValue(schema: ZodType, key: string, ctx: RngContext): unknown {
   if (ctx.depth > 6) return 'mock'
-  const def = zodDef(schema)
-  const kind = def.typeName ?? 'unknown'
   ctx.depth++
   try {
-    switch (kind) {
-      case 'ZodString': return mockString(key, def, ctx)
-      case 'ZodNumber': return mockNumber(def, ctx)
-      case 'ZodBoolean': return ctx.rng() < 0.75
-      case 'ZodDate': return new Date(MOCK_EPOCH - Math.floor(ctx.rng() * YEAR_MS))
-      case 'ZodNull': return null
-      case 'ZodLiteral': return def.value
-      case 'ZodEnum':
-      case 'ZodNativeEnum': {
-        const values = def.values ?? []
+    const unwrapped = unwrapZodSchema(schema)
+
+    // Defaults win — the schema guarantees that value.
+    if (unwrapped.hasDefault && unwrapped.defaultValue !== undefined) {
+      return unwrapped.defaultValue
+    }
+
+    const { descriptor, checks } = unwrapped
+    switch (descriptor.kind) {
+      case 'string':
+        return mockString(key, checks, ctx)
+      case 'number':
+        return mockNumber(checks, ctx)
+      case 'bigint':
+        return BigInt(intBetween(ctx.rng, 1, 1000))
+      case 'boolean':
+        return ctx.rng() < 0.75
+      case 'date':
+        return new Date(MOCK_EPOCH - Math.floor(ctx.rng() * YEAR_MS))
+      case 'nan':
+        return Number.NaN
+      case 'null':
+        return null
+      case 'undefined':
+      case 'void':
+        return undefined
+      case 'symbol':
+        return 'mock'
+      case 'literal':
+      case 'enum': {
+        const values = descriptor.values ?? []
         return values.length > 0 ? pick(values, ctx.rng) : 'mock'
       }
-      case 'ZodArray': {
-        const element = def.type ?? def.innerType
+      case 'array':
+      case 'set': {
+        const element = descriptor.element
         const count = intBetween(ctx.rng, 1, 3)
         const result: unknown[] = []
         for (let i = 0; i < count; i++) {
@@ -175,50 +203,71 @@ export function generateMockValue(schema: ZodType, key: string, ctx: RngContext)
         }
         return result
       }
-      case 'ZodObject': {
-        const shape = typeof def.shape === 'function' ? def.shape() : def.shape
+      case 'tuple': {
+        return (descriptor.items ?? []).map((item, index) => generateMockValue(item, `${key}${index}`, ctx))
+      }
+      case 'object': {
+        const shape = descriptor.shape ?? {}
         const result: Record<string, unknown> = {}
-        for (const [childKey, child] of Object.entries(shape ?? {})) {
+        for (const [childKey, child] of Object.entries(shape)) {
           result[childKey] = generateMockValue(child, childKey, ctx)
         }
         return result
       }
-      case 'ZodUnion':
-      case 'ZodDiscriminatedUnion': {
-        const options = def.options ?? []
+      case 'union': {
+        const options = descriptor.options ?? []
         return options.length > 0 ? generateMockValue(pick(options, ctx.rng), key, ctx) : 'mock'
       }
-      case 'ZodIntersection': return def.left ? generateMockValue(def.left, key, ctx) : 'mock'
-      case 'ZodRecord': {
-        return { [`mock${key}`]: def.valueType ? generateMockValue(def.valueType, key, ctx) : 'mock' }
-      }
-      case 'ZodTuple': {
-        return (def.items ?? []).map((item, index) => generateMockValue(item, `${key}${index}`, ctx))
-      }
-      case 'ZodOptional':
-      case 'ZodCatch':
-      case 'ZodBranded': {
-        return def.innerType ? generateMockValue(def.innerType, key, ctx) : 'mock'
-      }
-      case 'ZodNullable': {
-        return def.innerType ? generateMockValue(def.innerType, key, ctx) : null
-      }
-      case 'ZodDefault': {
-        try {
-          return typeof def.defaultValue === 'function' ? (def.defaultValue as () => unknown)() : def.defaultValue
-        } catch {
-          return def.innerType ? generateMockValue(def.innerType, key, ctx) : 'mock'
+      case 'intersection': {
+        // Both sides must hold: merge object schemas, otherwise use the left one.
+        if (descriptor.left && descriptor.right) {
+          const left = generateMockValue(descriptor.left, key, ctx)
+          const right = generateMockValue(descriptor.right, key, ctx)
+          if (isPlainRecord(left) && isPlainRecord(right)) return { ...left, ...right }
+          return left
         }
+        return 'mock'
       }
-      case 'ZodEffects': {
-        const inner = def.schema ?? def.innerType
+      case 'record':
+      case 'map': {
+        return { [`mock${key}`]: descriptor.valueType ? generateMockValue(descriptor.valueType, key, ctx) : 'mock' }
+      }
+      case 'refinement':
+      case 'custom':
+      case 'unsupported':
+      case 'any':
+      case 'unknown':
+      case 'never':
+      case 'promise':
+      case 'function':
+      case 'transform':
+        return 'mock'
+      case 'file':
+        // Files are not representable in JSON payloads.
+        return null
+      case 'readonly':
+      case 'optional':
+      case 'nullable':
+      case 'default':
+      case 'catch':
+      case 'lazy': {
+        const inner = descriptor.inner ?? descriptor.getter?.()
         return inner ? generateMockValue(inner, key, ctx) : 'mock'
       }
-      default: return 'mock'
+      case 'pipe': {
+        const inner = descriptor.input ?? descriptor.output
+        return inner ? generateMockValue(inner, key, ctx) : 'mock'
+      }
+      default:
+        return 'mock'
     }
   } finally {
     ctx.depth--
   }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**
@@ -253,3 +302,5 @@ export function autoMockContract<C extends AnyApiContract>(
     delay: options?.delay,
   })
 }
+
+

@@ -6,6 +6,7 @@ import type {
   ContractHandlerResponse, MaybePromise 
 } from './types'
 import { API_CONTRACT_KIND } from './types'
+import { resolveBodyFormat } from './multipart'
 
 
 /* ------------------------------------------------------------------ *
@@ -37,17 +38,21 @@ function getStore(): RegistryStore {
  * Registers a named contract. Called automatically by `defineApiContract`
  * when a `name` is provided. Same-name contracts with different `version`s
  * are stored side by side (0.6.0 contract versioning); re-registering the
- * same name+version overwrites the previous definition (dev HMR).
+ * same name+version overwrites the previous definition.
+ *
+ * Re-registration is expected (dev HMR, build-time OpenAPI loading + runtime)
+ * and stays silent; a warning is only logged when the same name+version maps
+ * to a *different* operation, which is a genuine conflict.
  */
 export function registerContract(contract: AnyApiContract): void {
   if (!contract.name) return
   const store = getStore()
   const key = canonicalKey(contract)
   const existing = store.contracts.get(key)
-  if (existing && existing !== contract) {
-    // Common during dev HMR; keep the newest definition.
+  if (existing && existing !== contract && (existing.method !== contract.method || existing.path !== contract.path)) {
     console.warn(
-      `[nuxt-api-contract] Duplicate contract name "${contract.name}"${contract.version !== undefined ? ` (v${contract.version})` : ''} registered. The latest definition wins.`,
+      `[nuxt-api-contract] Duplicate contract name "${contract.name}"${contract.version !== undefined ? ` (v${contract.version})` : ''} `
+      + `maps to ${contract.method} ${contract.path} but was already registered as ${existing.method} ${existing.path}. The latest definition wins.`,
     )
   }
   store.contracts.set(key, contract)
@@ -135,6 +140,7 @@ export function defineApiContract<const TDef extends ApiContractDefinition>(
     params: definition.params,
     query: definition.query,
     body: definition.body,
+    bodyFormat: resolveBodyFormat({ body: definition.body, bodyFormat: definition.bodyFormat }),
     headers: definition.headers,
     response: definition.response,
     errors: definition.errors ? Object.freeze({ ...definition.errors }) : undefined,

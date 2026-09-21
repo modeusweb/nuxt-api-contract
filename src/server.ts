@@ -29,3 +29,5 @@ export {
   rawQuerySchema,
 } from './server/validation'
 export type { ResponseValidationMode, RuntimeApiContractConfig } from './server/validation'
+export { readMultipartBody, coerceMultipartValue } from './server/multipart'
+export type { MultipartFileDescriptor } from './server/multipart'

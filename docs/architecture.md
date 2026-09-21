@@ -17,9 +17,12 @@ the core flow.
 src/
 ├── module.ts                 Nuxt module (build-time concerns only)
 ├── module/devtoolsHtml.ts    DevTools panel data builder
-├── cli.ts                    `nuxt-api-contract openapi|mock` CLI (jiti loader)
+├── cli.ts                    `nuxt-api-contract openapi|mock|client` CLI (jiti loader)
 ├── openapi/
 │   └── generator.ts          Contract/Zod -> OpenAPI (isolated layer)
+├── clientgen/
+│   ├── generator.ts          Contract -> standalone TypeScript client
+│   └── zodToTs.ts            Zod -> TypeScript type emission
 ├── mock/
 │   └── server.ts             Standalone mock server (node:http, no framework)
 ├── client.ts                 client-safe barrel (loadable OUTSIDE Nuxt)
@@ -30,10 +33,60 @@ src/
 ├── types.d.ts                build-time virtual module declarations
 ├── types/imports.d.ts        repo-local shims for #imports / #app
 └── runtime/
-    ├── shared/               contract, types, errors, format, serialization
+    ├── shared/               contract, types, errors, format, serialization,
+    │                         zod-schema, mock, multipart, versioning
     ├── client/               transport, useApi
-    ├── server/               defineContractHandler, validation, routes
+    ├── server/               defineContractHandler, validation, multipart,
+    │                         versioning, routes
     └── testing/              callContract
+```
+
+### Zod version support (the introspection layer)
+
+Zod 3 and Zod 4 expose different internals for the same public API:
+
+| Concept | Zod 3 | Zod 4 |
+| --- | --- | --- |
+| schema kind | `_def.typeName` (`ZodString`) | `_def.type` (`string`) |
+| checks | `_def.checks[].kind` (`min`, `email`, UUID formats…) | `checks[]._zod.def.check` (`min_length`, `string_format`, `greater_than`, …) |
+| format schemas | always checks (`z.string().email()`) | also schema-level (`z.email()`, `z.iso.datetime()`) |
+| object shape | `_def.shape()` function | plain object |
+| strict / loose objects | `_def.unknownKeys` | `_def.catchall` (`never` / `unknown`) |
+| refine / superRefine | `ZodEffects` wrapper | `custom` check on the same schema |
+| transform / preprocess | `ZodEffects` (`effect.type`, `schema`) | `pipe` (`in` / `out`) |
+| literal / enum values | `_def.value`, `_def.values[]` | `_def.values[]`, `_def.entries` |
+
+`runtime/shared/zod-schema.ts` normalizes all of it into `ZodSchemaDescriptor`
+(kind, checks, shape, element, options, in/out, defaults, …) plus
+`unwrapZodSchema()` for wrapper metadata (optional / nullable / default /
+checks). Consumption rules:
+
+- **mock generation**, **OpenAPI generation** and **TypeScript emission** read
+  only descriptors — they never touch `_def` / `_zod.def`;
+- `ExtractSchemaInput` / `ExtractSchemaOutput` use Zod's own `input` / `output`
+  helpers (Zod 4 declares `ZodType`'s first two parameters as `any`, so
+  structural `infer` extraction silently yields the internals);
+- a conservative input repair restores Zod 3 semantics for fields whose Zod 4
+  input is `unknown` (`z.coerce.*`, `z.preprocess()`), keeping coerced query
+  params type-safe without rewriting arrays, tuples or non-plain objects.
+
+The layer is verified against both majors in `test/unit/zod-schema.spec.ts`
+(Zod 4 plus the `zod/v3` build shipped by Zod 4).
+
+### Body transports
+
+```text
+contract.bodyFormat            (resolved at definition time)
+  'auto'  → multipartSchema marker ? 'multipart' : 'json'
+  'json'      → JSON payload
+  'multipart' → FormData / multipart parts
+
+client: serializeMultipartBody(body) -> FormData -> $fetch (untouched; ofetch
+        never JSON-encodes FormData, the runtime sets the boundary)
+server: readMultipartBody(event, schema)
+          ├─ readMultipartFormData(event)  (h3)
+          ├─ text parts -> string, file parts -> File (or descriptor)
+          └─ coerceMultipartValue(schema, body)  schema-driven coercion
 ```
 
 ### Import-safety rules
@@ -129,11 +182,21 @@ openapi/cli → shared, zod, jiti                (build-time only)
 ## Testing strategy
 
 - **Unit** (`test/unit`): path building, contract/registry, errors, formatting,
-  serialization, OpenAPI generation, validation, `callContract`.
+  serialization, Zod introspection (Zod 4 **and** Zod 3 via `zod/v3`), mock
+  generation, OpenAPI generation, validation, multipart serialization/coercion,
+  `callContract`, `testContract`, versioning.
 - **Type** (`test/type`): `expectTypeOf` positive + negative (`@ts-expect-error`)
   cases for params/query/body/headers/response, defaults, nullable, arrays,
-  nested objects, discriminated unions, handler context.
+  nested objects, discriminated unions, handler context, multipart bodies.
 - **Integration** (`test/integration`): Nuxt Test Utils e2e against the
-  playground — validation, typed errors, coercion, POST/PATCH/DELETE, OpenAPI
-  route, SSR page rendering.
+  playground — validation, typed errors, coercion, POST/PATCH/DELETE, real
+  multipart uploads, OpenAPI route/content types, SSR page rendering; plus the
+  standalone mock server and the generated client.
 - Regression rule: every fixed bug gets a test in the matching layer.
+
+## Stability
+
+Since 1.0.0 the public surface is frozen and documented in
+[public-api.md](public-api.md). Internal modules (the introspection layer, the
+transport, chunk names) are explicitly **not** part of it and may change in a
+patch release.

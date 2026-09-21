@@ -2,6 +2,7 @@ import type { AnyApiContract, ApiRequestOptions, ContractClientResponse, Resolve
 import { resolveContractUrl } from '../runtime/shared/contract'
 import { ApiError, parseApiErrorPayload, toApiError } from '../runtime/shared/errors'
 import { serializeQuery, stableStringify } from '../runtime/shared/serialization'
+import { resolveBodyFormat, serializeMultipartBody } from '../runtime/shared/multipart'
 
 
 /** Stable cache key for a contract request (identical on server and client). */
@@ -95,11 +96,15 @@ export async function executeContractRequest<C extends AnyApiContract>(
   const fetchImpl = unwrapFetch(doFetch, contract)
   const hasBodySchema = contract.body !== undefined
   const hasBody = resolved.body !== undefined || hasBodySchema
+  const multipart = resolveBodyFormat(contract) === 'multipart'
+  // `FormData` is passed through by `$fetch`/ofetch untouched (it detects it and
+  // never JSON-encodes it), so the runtime adds the multipart boundary itself.
+  const body = multipart ? serializeMultipartBody(resolved.body ?? {}) : resolved.body
   try {
     const response = await fetchImpl(url, {
       method: contract.method,
       query: resolved.query,
-      body: contract.method === 'GET' || contract.method === 'HEAD' ? undefined : hasBody ? resolved.body ?? {} : undefined,
+      body: contract.method === 'GET' || contract.method === 'HEAD' ? undefined : hasBody ? body ?? {} : undefined,
       headers: resolved.headers,
       signal: resolved.signal,
     })

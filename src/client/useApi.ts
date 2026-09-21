@@ -22,20 +22,22 @@ export interface UseApiClientOptions {
 }
 
 /**
- * Executes a contract request and returns the typed response.
- * Intended for actions, Pinia stores, background jobs and composables where
- * a reactive `AsyncData` wrapper is not needed. Throws `ApiError` on failure.
+ * Creates a typed, imperative API client.
+ *
+ * Intended for actions, Pinia stores, background jobs and composables where a
+ * reactive `AsyncData` wrapper is not needed. Throws `ApiError` on failure.
+ *
+ * ```ts
+ * const api = useApiClient()
+ * const user = await api.request(GetUser, { params: { id } })
+ * ```
+ *
+ * Must be called from a Nuxt context (component setup, plugin, server handler,
+ * Nitro route). The Nuxt app instance and the SSR request event are captured
+ * synchronously, so requests issued later still use the internal Nitro
+ * transport during SSR.
  */
-export async function useApiClient(options?: UseApiClientOptions): Promise<{
-  request: <C extends AnyApiContract>(
-    contract: C,
-    options?: ApiRequestOptions<C>,
-  ) => Promise<ContractClientResponse<C>>
-  tryRequest: <C extends AnyApiContract>(
-    contract: C,
-    options?: ApiRequestOptions<C>,
-  ) => Promise<{ data: ContractClientResponse<C>, error: ApiError | null }>
-}> {
+export function useApiClient(options?: UseApiClientOptions): ApiClient {
   const nuxtApp = useNuxtApp()
   const event = import.meta.server ? useRequestEvent() : undefined
 
@@ -54,19 +56,31 @@ export async function useApiClient(options?: UseApiClientOptions): Promise<{
     return (url, init) => (nuxtApp.$fetch as unknown as (url: string, init: Record<string, unknown>) => Promise<unknown>)(url, init)
   }
 
-  const doFetch: ExecuteRequestContext['fetch'] = resolveFetch
-
   return {
-    request: (contract, options) => executeContractRequest(contract, options, doFetch),
-    tryRequest: async (contract, options) => {
+    request: (contract, requestOptions) => executeContractRequest(contract, requestOptions, resolveFetch),
+    tryRequest: async (contract, requestOptions) => {
       try {
-        const data = await executeContractRequest(contract, options, doFetch)
+        const data = await executeContractRequest(contract, requestOptions, resolveFetch)
         return { data, error: null }
       } catch (error) {
         return { data: undefined as ContractClientResponse<typeof contract>, error: toContractError(error) }
       }
     },
   }
+}
+
+/** Imperative typed client returned by `useApiClient()`. */
+export interface ApiClient {
+  /** Executes the request and returns the typed response (throws `ApiError`). */
+  request: <C extends AnyApiContract>(
+    contract: C,
+    options?: ApiRequestOptions<C>,
+  ) => Promise<ContractClientResponse<C>>
+  /** Executes the request and returns `{ data, error }` instead of throwing. */
+  tryRequest: <C extends AnyApiContract>(
+    contract: C,
+    options?: ApiRequestOptions<C>,
+  ) => Promise<{ data: ContractClientResponse<C>, error: ApiError | null }>
 }
 
 /**
@@ -89,12 +103,15 @@ export function useApi<C extends AnyApiContract>(
 ): AsyncData<ContractClientResponse<C>, ApiError> {
   const key = createRequestKey(contract, options as ApiRequestOptions<AnyApiContract> | undefined)
 
+  // The client is created synchronously (setup context), so the Nuxt app and
+  // the SSR request event are captured before the async handler runs. That
+  // keeps the internal Nitro transport available and avoids hydration
+  // mismatches (SSR and client produce the same payload key).
+  const client = useApiClient()
+
   const result = useAsyncData<ContractClientResponse<C>, ApiError>(
     key,
-    async () => {
-      const client = await useApiClient()
-      return client.request(contract, options)
-    },
+    () => client.request(contract, options),
     { deep: false, dedupe: 'defer' },
   )
 

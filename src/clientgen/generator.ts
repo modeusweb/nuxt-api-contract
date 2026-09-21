@@ -6,7 +6,8 @@
  */
 import type { ZodType } from 'zod'
 import type { AnyApiContract, HttpMethod } from '../runtime/shared/types'
-import { emitMember, emitNamedType, emitTsType, objectShape, pathParamNames, zodDef } from './zodToTs'
+import { unwrapZodSchema } from '../runtime/shared/zod-schema'
+import { emitMember, emitNamedType, emitTsType, pathParamNames } from './zodToTs'
 
 export interface GenerationWarning {
   contract: string
@@ -75,19 +76,11 @@ function contractTypeName(contract: AnyApiContract, used: Set<string>): string {
 
 /** True when the top-level schema has at least one required property. */
 function hasRequiredProp(schema: ZodType): boolean {
-  const def = zodDef(schema)
-  if (def.typeName !== 'ZodObject') return true
-  return Object.values(objectShape(def)).some((value) => {
-    let current = value
-    for (;;) {
-      const inner = zodDef(current)
-      if (inner.typeName === 'ZodOptional' || inner.typeName === 'ZodDefault' || inner.typeName === 'ZodNullable') {
-        current = inner.innerType!
-        continue
-      }
-      break
-    }
-    return zodDef(current).typeName !== 'ZodOptional'
+  const descriptor = unwrapZodSchema(schema).descriptor
+  if (descriptor.kind !== 'object') return true
+  return Object.values(descriptor.shape ?? {}).some((value) => {
+    const unwrapped = unwrapZodSchema(value)
+    return !unwrapped.optional && !unwrapped.hasDefault && !unwrapped.nullable
   })
 }
 
@@ -97,8 +90,8 @@ function computeInputShape(contract: AnyApiContract): Pick<GeneratedOperation, '
   let schemaRequired = false
   let paramsIsObject = false
   if (contract.params) {
-    const def = zodDef(contract.params as ZodType)
-    if (def.typeName === 'ZodObject') {
+    const descriptor = unwrapZodSchema(contract.params as ZodType).descriptor
+    if (descriptor.kind === 'object') {
       paramsIsObject = true
       schemaRequired = hasRequiredProp(contract.params as ZodType)
     } else {
@@ -122,7 +115,7 @@ function emitTypeDeclarations(operation: GeneratedOperation, warnings: string[])
 
   if (contract.params || pathNames.length > 0) {
     if (contract.params && operation.paramsIsObject) {
-      const shape = objectShape(zodDef(contract.params as ZodType))
+      const shape = unwrapZodSchema(contract.params as ZodType).descriptor.shape ?? {}
       const lines = Object.entries(shape).map(([key, value]) => emitMember(key, value, 'input', warnings, `${operation.method}.params`))
       for (const name of pathNames) {
         if (!(name in shape)) lines.push(`  ${JSON.stringify(name)}: string`)

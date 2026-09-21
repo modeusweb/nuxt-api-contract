@@ -10,6 +10,8 @@ import type { ZodType } from 'zod'
 import type { AnyApiContract } from '../runtime/shared/types'
 import { isExternalContract } from '../runtime/shared/contract'
 import { normalizeDeprecation } from '../runtime/shared/versioning'
+import { describeZodSchema, unwrapZodSchema } from '../runtime/shared/zod-schema'
+import type { ZodCheck } from '../runtime/shared/zod-schema'
 
 export type JsonSchemaObject = Record<string, unknown>
 
@@ -29,30 +31,9 @@ export interface OpenApiGenerationResult {
   warnings: GenerationWarning[]
 }
 
-/** Runtime shape of a Zod schema definition (zod 3 internals). */
-interface ZodDefLike {
-  typeName?: string
-  shape?: Record<string, ZodType> | (() => Record<string, ZodType>)
-  innerType?: ZodType
-  options?: ZodType[]
-  value?: unknown
-  values?: unknown[]
-  items?: ZodType[]
-  valueType?: ZodType
-  type?: ZodType
-  checks?: Array<{ kind?: string, value?: unknown }>
-  description?: string
-  effect?: { type?: string }
-  schema?: ZodType
-  left?: ZodType
-  right?: ZodType
-  defaultValue?: unknown
-}
-
-/** Accesses zod internals through a typed boundary. */
-function zodDef(schema: ZodType): ZodDefLike {
-  return (schema as unknown as { _def: ZodDefLike })._def
-}
+/* ------------------------------------------------------------------ *
+ * Zod -> JSON Schema
+ * ------------------------------------------------------------------ */
 
 /** Converts a path like `/api/users/:id` into `/api/users/{id}`. */
 export function toOpenApiPath(path: string): string {
@@ -63,140 +44,212 @@ function pathParamNames(path: string): string[] {
   return [...path.matchAll(/:([A-Za-z_][A-Za-z0-9_]*)/g)].map(match => match[1]!)
 }
 
-/**
- * Converts a Zod schema into a JSON schema. Best-effort: anything not
- * directly representable falls back to the inner schema or an empty schema
- * plus a warning.
- */
-export function zodToJsonSchema(schema: ZodType, warnings: GenerationWarning[], contractLabel: string): JsonSchemaObject {
-  const def = zodDef(schema)
-  const kind = def.typeName ?? 'unknown'
-  const description = def.description
-
-  const base = (schema: JsonSchemaObject): JsonSchemaObject => (description ? { ...schema, description } : schema)
-
-  switch (kind) {
-    case 'ZodString': {
-      const result: JsonSchemaObject = { type: 'string' }
-      for (const check of def.checks ?? []) {
-        switch (check.kind) {
+/** Applies normalized string checks to an OpenAPI schema object. */
+function applyStringChecks(result: JsonSchemaObject, checks: ZodCheck[]): JsonSchemaObject {
+  for (const check of checks) {
+    switch (check.kind) {
+      case 'format':
+        switch (check.format) {
           case 'email': result.format = 'email'; break
           case 'uuid': result.format = 'uuid'; break
-          case 'datetime': result.format = 'date-time'; break
           case 'url': result.format = 'uri'; break
-          case 'min': result.minLength = check.value; break
-          case 'max': result.maxLength = check.value; break
+          case 'datetime': result.format = 'date-time'; break
+          case 'date': result.format = 'date'; break
+          case 'time': result.format = 'time'; break
+          case 'duration': result.format = 'duration'; break
+          case 'ip':
+          case 'ipv4': result.format = 'ipv4'; break
+          case 'ipv6': result.format = 'ipv6'; break
+          // startsWith / endsWith / includes / emoji / cuid / jwt … have no
+          // OpenAPI equivalent: skipped rather than misrepresented.
           default: break
         }
-      }
-      return base(result)
-    }
-    case 'ZodNumber': {
-      const result: JsonSchemaObject = { type: 'number' }
-      for (const check of def.checks ?? []) {
-        switch (check.kind) {
-          case 'int': result.type = 'integer'; break
-          case 'min': result.minimum = check.value; break
-          case 'max': result.maximum = check.value; break
-          case 'multipleOf': result.multipleOf = check.value; break
-          default: break
+        break
+      case 'regex':
+        if (check.pattern) result.pattern = check.pattern
+        break
+      case 'min':
+        if (typeof check.value === 'number') result.minLength = check.value
+        break
+      case 'max':
+        if (typeof check.value === 'number') result.maxLength = check.value
+        break
+      case 'length':
+        if (typeof check.value === 'number') {
+          result.minLength = check.value
+          result.maxLength = check.value
         }
-      }
-      return base(result)
+        break
+      default:
+        break
     }
-    case 'ZodBoolean': return base({ type: 'boolean' })
-    case 'ZodNull': return base({ type: 'null' })
-    case 'ZodDate': return base({ type: 'string', format: 'date-time' })
-    case 'ZodLiteral': return base({ enum: [def.value], type: typeof def.value })
-    case 'ZodEnum': return base({ enum: def.values, type: typeof (def.values?.[0]) })
-    case 'ZodArray': {
-      const element = def.type ?? def.innerType
-      return base({
-        type: 'array',
-        items: element ? zodToJsonSchema(element, warnings, contractLabel) : {},
-      })
+  }
+  return result
+}
+
+/** Applies normalized numeric checks (OpenAPI 3.0 exclusive bounds are flags). */
+function applyNumberChecks(result: JsonSchemaObject, checks: ZodCheck[]): JsonSchemaObject {
+  for (const check of checks) {
+    switch (check.kind) {
+      case 'int':
+        result.type = 'integer'
+        break
+      case 'min':
+        if (typeof check.value === 'number') {
+          result.minimum = check.value
+          if (check.inclusive === false) result.exclusiveMinimum = true
+        }
+        break
+      case 'max':
+        if (typeof check.value === 'number') {
+          result.maximum = check.value
+          if (check.inclusive === false) result.exclusiveMaximum = true
+        }
+        break
+      case 'multipleOf':
+        if (typeof check.value === 'number') result.multipleOf = check.value
+        break
+      default:
+        break
     }
-    case 'ZodObject': {
-      const shape = typeof def.shape === 'function' ? def.shape() : def.shape
+  }
+  return result
+}
+
+/** Applies min/max/length checks to arrays and sets. */
+function applySizeChecks(result: JsonSchemaObject, checks: ZodCheck[]): JsonSchemaObject {
+  for (const check of checks) {
+    if (typeof check.value !== 'number') continue
+    if (check.kind === 'min') result.minItems = check.value
+    else if (check.kind === 'max') result.maxItems = check.value
+    else if (check.kind === 'length') {
+      result.minItems = check.value
+      result.maxItems = check.value
+    }
+  }
+  return result
+}
+
+
+/**
+ * Converts a Zod schema into an OpenAPI-flavored JSON schema. Best-effort:
+ * anything not directly representable degrades to the closest schemable form
+ * plus a warning — generation of the whole document never fails.
+ */
+export function zodToJsonSchema(
+  schema: ZodType,
+  warnings: GenerationWarning[],
+  contractLabel: string,
+  path = 'schema',
+): JsonSchemaObject {
+  const topDescriptor = describeZodSchema(schema)
+  const { descriptor, checks, nullable, hasDefault, defaultValue } = unwrapZodSchema(schema)
+
+  const described = (json: JsonSchemaObject): JsonSchemaObject => {
+    const description = topDescriptor.description ?? descriptor.description
+    let result = description ? { ...json, description } : json
+    if (hasDefault && defaultValue !== undefined) result = { ...result, default: defaultValue }
+    if (nullable) result = { ...result, nullable: true }
+    if (json.type === 'array') result = applySizeChecks(result, checks)
+    return result
+  }
+
+  if (checks.some(check => check.kind === 'refinement')) {
+    warnings.push({
+      contract: contractLabel,
+      message: `${path}: refinements cannot be represented in OpenAPI; the underlying schema is emitted without them.`,
+    })
+  }
+
+  const recurse = (inner: ZodType | undefined, suffix = ''): JsonSchemaObject =>
+    inner ? zodToJsonSchema(inner, warnings, contractLabel, suffix ? `${path}.${suffix}` : path) : {}
+
+  switch (descriptor.kind) {
+    case 'string':
+      return described(applyStringChecks({ type: 'string' }, checks))
+    case 'number':
+      return described(applyNumberChecks({ type: 'number' }, checks))
+    case 'boolean':
+      return described({ type: 'boolean' })
+    case 'bigint':
+      // Serialized as a JSON string (see serialization notes in the README).
+      return described({ type: 'string', format: 'int64' })
+    case 'date':
+      return described({ type: 'string', format: 'date-time' })
+    case 'null':
+      return described({ nullable: true, enum: [null] })
+    case 'file':
+      return described({ type: 'string', format: 'binary' })
+    case 'literal': {
+      const value = descriptor.values?.[0]
+      return described({ enum: [value], type: value === null ? 'null' : typeof value })
+    }
+    case 'enum': {
+      const values = descriptor.values ?? []
+      return described({ enum: values, type: typeof values[0] })
+    }
+    case 'array':
+      return described(applySizeChecks({ type: 'array', items: recurse(descriptor.element, '[]') }, checks))
+    case 'set':
+      return described(applySizeChecks({ type: 'array', items: recurse(descriptor.element, '[]'), uniqueItems: true }, checks))
+    case 'object': {
       const properties: Record<string, JsonSchemaObject> = {}
       const required: string[] = []
-      for (const [key, value] of Object.entries(shape ?? {})) {
-        properties[key] = zodToJsonSchema(value, warnings, contractLabel)
-        if (!isOptional(value)) required.push(key)
+      for (const [key, value] of Object.entries(descriptor.shape ?? {})) {
+        properties[key] = zodToJsonSchema(value, warnings, contractLabel, `${path}.${key}`)
+        const unwrapped = unwrapZodSchema(value)
+        if (!unwrapped.optional && !unwrapped.hasDefault) required.push(key)
       }
       const result: JsonSchemaObject = { type: 'object', properties }
       if (required.length > 0) result.required = required
-      return base(result)
+      if (descriptor.unknownKeys === 'strict') result.additionalProperties = false
+      return described(result)
     }
-    case 'ZodUnion':
-    case 'ZodDiscriminatedUnion': {
-      return base({
-        anyOf: (def.options ?? []).map(option => zodToJsonSchema(option, warnings, contractLabel)),
-      })
+    case 'union': {
+      const anyOf = (descriptor.options ?? []).map((option, index) => zodToJsonSchema(option, warnings, contractLabel, `${path}[${index}]`))
+      const result: JsonSchemaObject = { anyOf }
+      if (descriptor.discriminatedBy) result.discriminator = { propertyName: descriptor.discriminatedBy }
+      return described(result)
     }
-    case 'ZodIntersection': {
-      return base({
-        allOf: [def.left, def.right]
+    case 'intersection':
+      return described({
+        allOf: [descriptor.left, descriptor.right]
           .filter((part): part is ZodType => Boolean(part))
-          .map(part => zodToJsonSchema(part, warnings, contractLabel)),
+          .map((part, index) => zodToJsonSchema(part, warnings, contractLabel, `${path}.allOf[${index}]`)),
       })
-    }
-    case 'ZodRecord': {
-      return base({
-        type: 'object',
-        additionalProperties: def.valueType ? zodToJsonSchema(def.valueType, warnings, contractLabel) : {},
-      })
-    }
-    case 'ZodTuple': {
-      return base({
+    case 'record':
+    case 'map':
+      return described({ type: 'object', additionalProperties: recurse(descriptor.valueType, '{}') })
+    case 'tuple':
+      return described({
         type: 'array',
-        items: { anyOf: (def.items ?? []).map(item => zodToJsonSchema(item, warnings, contractLabel)) },
+        items: { anyOf: (descriptor.items ?? []).map((item, index) => zodToJsonSchema(item, warnings, contractLabel, `${path}[${index}]`)) },
       })
-    }
-    case 'ZodOptional': {
-      if (def.innerType) return zodToJsonSchema(def.innerType, warnings, contractLabel)
-      return base({})
-    }
-    case 'ZodNullable': {
-      const inner = def.innerType ? zodToJsonSchema(def.innerType, warnings, contractLabel) : {}
-      return base({ ...inner, nullable: true })
-    }
-    case 'ZodDefault': {
-      const inner = def.innerType ? zodToJsonSchema(def.innerType, warnings, contractLabel) : {}
-      let defaultValue: unknown
-      try {
-        defaultValue = typeof def.defaultValue === 'function' ? (def.defaultValue as () => unknown)() : def.defaultValue
-      } catch {
-        defaultValue = undefined
-      }
-      return base({ ...inner, default: defaultValue })
-    }
-    case 'ZodCatch':
-    case 'ZodBranded': {
-      return def.innerType ? zodToJsonSchema(def.innerType, warnings, contractLabel) : base({})
-    }
-    case 'ZodEffects': {
-      // transform / refine / preprocess: represent the inner schema, warn.
+    case 'pipe':
       warnings.push({
         contract: contractLabel,
-        message: `Zod effects (${def.effect?.type ?? 'unknown'}) cannot be represented in OpenAPI; the inner schema is used.`,
+        message: `${path}: Zod effects (${descriptor.effect ?? 'unknown'}) cannot be represented in OpenAPI; the input schema is used.`,
       })
-      const inner = def.schema ?? def.innerType
-      return inner ? zodToJsonSchema(inner, warnings, contractLabel) : base({})
-    }
+      return recurse(descriptor.input ?? descriptor.output)
+    case 'any':
+    case 'unknown':
+      // Any JSON value is representable.
+      return described({})
+    case 'optional':
+    case 'nullable':
+    case 'default':
+    case 'catch':
+    case 'readonly':
+      // Reached only when a wrapper had no inner schema.
+      return recurse(descriptor.inner)
     default: {
       warnings.push({
         contract: contractLabel,
-        message: `Unsupported Zod kind "${kind}" cannot be represented in OpenAPI; an empty schema is emitted.`,
+        message: `${path}: unsupported Zod kind "${descriptor.rawKind ?? descriptor.kind}" cannot be represented in OpenAPI; an empty schema is emitted.`,
       })
-      return base({})
+      return described({})
     }
   }
-}
-
-function isOptional(schema: ZodType): boolean {
-  const typeName = zodDef(schema).typeName
-  return typeName === 'ZodOptional' || typeName === 'ZodDefault'
 }
 
 function extractShapeProperty(
@@ -205,10 +258,10 @@ function extractShapeProperty(
   warnings: GenerationWarning[],
   label: string,
 ): JsonSchemaObject | undefined {
-  const def = zodDef(schema)
-  const shape = typeof def.shape === 'function' ? def.shape() : def.shape
-  if (def.typeName === 'ZodObject' && shape?.[name]) {
-    return zodToJsonSchema(shape[name]!, warnings, label)
+  const descriptor = describeZodSchema(schema)
+  if (descriptor.kind === 'object') {
+    const property = descriptor.shape?.[name]
+    if (property) return zodToJsonSchema(property, warnings, label)
   }
   warnings.push({
     contract: label,
@@ -265,9 +318,12 @@ export function contractToOperation(contract: AnyApiContract, warnings: Generati
   }
 
   if (contract.body) {
+    const multipart = contract.bodyFormat === 'multipart'
     operation.requestBody = {
       required: !hasOptionalTopLevel(contract.body as ZodType),
-      content: { 'application/json': { schema: zodToJsonSchema(contract.body as ZodType, warnings, label) } },
+      content: multipart
+        ? { 'multipart/form-data': { schema: zodToJsonSchema(contract.body as ZodType, warnings, label) } }
+        : { 'application/json': { schema: zodToJsonSchema(contract.body as ZodType, warnings, label) } },
     }
   }
 
@@ -376,6 +432,7 @@ export function generateOpenApiDocument(
                     properties: {
                       path: { type: 'string' },
                       message: { type: 'string' },
+                      code: { type: 'string' },
                       expected: { type: 'string' },
                     },
                     required: ['path', 'message'],

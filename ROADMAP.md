@@ -13,10 +13,19 @@ re-numbered against actual releases.
 | 0.4.0 | OpenAPI client generation for external consumers | ✅ released |
 | 0.5.0 | External API contracts (pluggable transports, e.g. GitHub API) | ✅ released |
 | 0.6.0 | Contract versioning helpers (`versionedPath`, `version` registry, negotiation, deprecation) | ✅ released |
-| 1.0.0 | Stable public API, Zod 4 support, multipart/file-upload bodies, strict SemVer | planned |
+| 1.0.0 | Stable public API (frozen + documented in `docs/public-api.md`), Zod 4 support (dual Zod 3/4 introspection), multipart/file-upload bodies, strict SemVer | ✅ released |
 
-Patch releases (0.x.y) carry fixes; minor releases (0.x.0) may carry features
-and documented breaking changes until 1.0.
+Patch releases (1.x.y) carry fixes only; features land in minor releases (1.x.0)
+and any breaking change requires a major release — see
+[`docs/public-api.md`](docs/public-api.md) for the frozen surface.
+
+Post-1.0 candidates (not committed):
+
+- OpenAPI 3.1 / `z.toJSONSchema()`-based generation behind the same abstraction
+  layer (JSON Schema dialects instead of hand-mapped keywords);
+- file uploads in the generated standalone client (multipart request bodies);
+- DevTools "diff contract vs. response" view;
+- contract versioning ergonomics (`defineApiContract` version registry UI).
 
 Non-goals (deliberately): ORM, database abstraction, auth framework, custom
 HTTP server/router, custom schema language, custom serializer.

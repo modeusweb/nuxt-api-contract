@@ -6,7 +6,8 @@ Define a contract **once** — get runtime validation, fully typed client calls,
 a unified error format, OpenAPI generation, mocks, contract tests and a
 DevTools panel from the same source of truth.
 
-> Status: `0.x` (pre-1.0, SemVer). The public API is intentionally small.
+> Status: **1.0.0** — stable public API, strict SemVer. The supported surface is
+> documented in [docs/public-api.md](docs/public-api.md).
 
 ## Why
 
@@ -48,7 +49,8 @@ export default defineNuxtConfig({
 })
 ```
 
-Zod (`^3.23`) is a peer dependency.
+Zod is a peer dependency: `zod: ^3.23.0 || ^4.0.0` (both majors are supported,
+see [Zod version support](#zod-version-support)).
 
 ## Quick start
 
@@ -106,7 +108,8 @@ defineApiContract({
   path: '/api/users',          // `:param` segments become required params
   params: z.object({}),        // path params schema
   query: z.object({}),         // query schema (use z.coerce for numbers)
-  body: z.object({}),          // JSON body schema
+  body: z.object({}),          // body schema (JSON)
+  bodyFormat: 'auto',          // 'auto' | 'json' | 'multipart' (1.0.0)
   headers: z.object({}),       // raw header schema
   response: z.object({}),      // success response schema
   errors: { EMAIL_TAKEN: z.object({}) }, // known error payloads by code
@@ -155,14 +158,132 @@ interface ContractHandlerContext {
 const { data, error, pending, refresh } = await useApi(GetUser, { params: { id } })
 
 // Imperative (actions, Pinia, event handlers):
-const api = await useApiClient()
+const api = useApiClient()
 const user = await api.request(GetUser, { params: { id } })            // throws ApiError
 const { data, error } = await api.tryRequest(GetUser, { params: { id } })
 ```
 
+`useApiClient()` is synchronous and captures the Nuxt app + SSR request event
+when it is called, so it also works inside Pinia actions, plugins and other
+non-setup code as long as it runs in a Nuxt context (or in a Nitro route during
+SSR).
+
 Both work in the browser, during SSR and after hydration. During SSR the
 request is executed **inside Nitro** (`event.$fetch`) — no HTTP round-trip to
 itself; the payload is transferred to the client automatically.
+
+## Multipart / file uploads (1.0.0)
+
+Declare the body with `multipartSchema()`; the transport, the server parsing and
+the OpenAPI document follow automatically.
+
+```ts
+// contracts/users.ts
+import { z } from 'zod'
+import { defineApiContract, multipartSchema } from 'nuxt-api-contract/client'
+
+export const UploadAvatar = defineApiContract({
+  name: 'UploadAvatar',
+  method: 'POST',
+  path: '/api/users/:id/avatar',
+
+  params: z.object({ id: z.string() }),
+
+  body: multipartSchema({
+    file: z.file(),                             // Zod 4. On Zod 3 use z.instanceof(File)
+    caption: z.string().max(120).optional(),
+    crop: z.coerce.boolean().optional(),
+    width: z.coerce.number().int().positive().optional(),
+  }),
+
+  response: z.object({
+    fileName: z.string(),
+    size: z.number().int(),
+    contentType: z.string(),
+  }),
+})
+```
+
+```ts
+// server/api/users/[id]/avatar.post.ts
+export default defineContractHandler(UploadAvatar, async ({ body }) => {
+  // `body.file` is a real File instance; text fields are already coerced.
+  return {
+    fileName: body.file.name,
+    size: body.file.size,
+    contentType: body.file.type,
+  }
+})
+```
+
+```vue
+<script setup lang="ts">
+const api = useApiClient()
+
+async function upload(file: File) {
+  const { data, error } = await api.tryRequest(UploadAvatar, {
+    params: { id: '1' },
+    body: { file, caption: 'profile photo', crop: true, width: 512 },
+  })
+}
+</script>
+```
+
+How values are transported:
+
+| Client value | On the wire | Server value |
+| --- | --- | --- |
+| `File` / `Blob` | file part (filename + content type preserved) | `File` |
+| `string` | text part | `string` |
+| `number`, `boolean`, `bigint`, `Date` | stringified | coerced back according to the schema |
+| array | repeated parts with the same name | array |
+| nested object | JSON string | parsed + coerced |
+| `null` / `undefined` | field omitted | `undefined` (defaults/optional apply) |
+
+Notes and limitations:
+
+- `bodyFormat: 'json' | 'multipart'` can be set explicitly; the default
+  `'auto'` detects the `multipartSchema()` marker. The resolved value is exposed
+  as `contract.bodyFormat`.
+- Coercion covers numbers, booleans, bigints, dates, arrays, JSON-encoded
+  objects and unions. Anything else stays a string so Zod reports an accurate
+  validation error.
+- File fields require a runtime with a global `File` (Node ≥ 20, Workers,
+  Nitro). On runtimes without `File` the package passes
+  `{ filename, type, size, data }` (`MultipartFileDescriptor`) and logs a
+  warning once.
+- The standalone generated client (`clientgen`) still generates JSON bodies
+  only; file uploads there are on the [roadmap](ROADMAP.md).
+
+## Zod version support
+
+`zod: ^3.23.0 || ^4.0.0` are both supported from the same contract source.
+Zod 4 changed its internals (`_def.type` instead of `_def.typeName`, the
+`$ZodCheck` model, `pipe` in/out, `def.catchall`), so all schema reading goes
+through one internal abstraction layer used by validation helpers, mock
+generation, OpenAPI generation and TypeScript emission.
+
+Two intentional differences, both in favour of type safety:
+
+1. **Coerced inputs keep Zod 3 semantics.** Zod 4 types the input of
+   `z.coerce.*` as `unknown`, which would accept anything from the client. The
+   package repairs such fields to the schema output type, so
+   `z.coerce.number()` query params behave exactly as they did on Zod 3:
+
+   ```ts
+   useApi(SearchUsers, { query: { limit: 20 } })      // ok
+   useApi(SearchUsers, { query: { limit: '20' } })    // TypeScript error
+   ```
+
+   The repair applies to top-level object fields (including union members);
+   arrays, tuples and non-plain objects (`Date`, `File`, `Map`, …) are left
+   untouched, and nested objects are not rewritten recursively.
+
+2. **Response/request validation is unchanged.** The server still validates
+   with `safeParse`, so coercion happens exactly once and always on the server.
+
+Validation issues carry the machine-readable Zod `code` (Zod 4 also reports
+length/format problems with descriptive messages, which are printed verbatim).
 
 ## Error handling
 
@@ -467,34 +588,46 @@ Runtime config (private, never in `public`):
 ```text
 src/
 ├── module.ts            # Nuxt module (build-time)
-├── cli.ts               # `nuxt-api-contract openapi` CLI
+├── cli.ts               # `nuxt-api-contract openapi | mock | client` CLI
 ├── openapi/             # Zod -> OpenAPI (isolated, build-time only)
-├── client.ts            # client-safe barrel (contracts, errors, helpers)
+├── clientgen/           # Zod -> TypeScript client (build-time only)
+├── mock/                # standalone mock server (build-time only)
+├── client.ts            # client-safe barrel (contracts, errors, mocks, multipart)
 ├── composables.ts       # useApi / useApiClient (requires Nuxt context)
-├── server.ts            # server barrel (handler, validation)
-├── testing.ts           # callContract test helper
+├── server.ts            # server barrel (handler, validation, multipart)
+├── testing.ts           # callContract / testContract helpers
 └── runtime/
-    ├── shared/          # contract, types, errors, format, serialization
+    ├── shared/          # contract, types, errors, format, serialization,
+    │                    # zod-schema (Zod 3/4 introspection), mock, multipart, versioning
     ├── client/          # transport, useApi
-    └── server/          # defineContractHandler, validation, routes
+    └── server/          # defineContractHandler, validation, multipart, versioning, routes
 ```
 
-Server-only code never reaches the client bundle; the OpenAPI generator, CLI
-and DevTools are not part of any runtime import chain (importing
-`useApi` adds ~4 kB). See [docs/architecture.md](docs/architecture.md).
+The single source of truth for schema reading is
+`runtime/shared/zod-schema.ts`: it normalizes Zod 3 and Zod 4 definitions into
+one descriptor used by mocks, OpenAPI and client generation, so no consumer
+touches `_def` / `_zod.def` directly.
+
+Server-only code never reaches the client bundle; the OpenAPI generator, CLI,
+client generator and DevTools are not part of any runtime import chain
+(importing `useApi` adds ~4 kB). See [docs/architecture.md](docs/architecture.md).
 
 ## Package exports
 
 | Export | Purpose |
 | --- | --- |
 | `nuxt-api-contract` | Module definition (for `modules: []`) |
-| `nuxt-api-contract/client` | Client-safe: `defineApiContract`, `createApiError`, registry, mocks |
+| `nuxt-api-contract/client` | Client-safe: `defineApiContract`, `createApiError`, registry, mocks, `multipartSchema` |
 | `nuxt-api-contract/composables` | `useApi`, `useApiClient` (Nuxt context required) |
-| `nuxt-api-contract/server` | `defineContractHandler`, validation helpers |
-| `nuxt-api-contract/testing` | `callContract` |
+| `nuxt-api-contract/server` | `defineContractHandler`, validation + multipart helpers |
+| `nuxt-api-contract/testing` | `callContract`, `testContract`, coverage |
 | `nuxt-api-contract/openapi` | OpenAPI generator |
+| `nuxt-api-contract/clientgen` | Standalone typed client generator |
 | `nuxt-api-contract/mock` | Standalone mock server + mock generators |
 | `nuxt-api-contract/shared` | Shared primitives |
+
+The full, frozen surface is listed in
+[docs/public-api.md](docs/public-api.md).
 
 ## Contract versioning
 
@@ -584,19 +717,27 @@ Behavior:
 
 ## Limitations
 
-- Zod 3.x only (`^3.23`); Zod 4 support is on the roadmap.
-- Request bodies are JSON; `multipart/form-data` (file uploads) is planned —
-  the contract abstraction already does not assume JSON-only bodies.
-- OpenAPI conversion is best-effort for `transform` / `refine` / `preprocess`.
+- File uploads require a runtime with a global `File` (Node ≥ 20). Without it,
+  file parts are passed as `{ filename, type, size, data }` descriptors.
+- Multipart coercion is one level deep per field: text fields, arrays,
+  JSON-encoded objects and unions are covered; deeply nested multipart
+  structures are not invented.
+- With Zod 4, coerced (`z.coerce.*`) inputs are repaired at the top level of an
+  object schema — see [Zod version support](#zod-version-support).
+- OpenAPI conversion is best-effort for `transform` / `refine` / `preprocess`
+  (a warning is collected, the closest schema is emitted, generation never
+  fails). OpenAPI is 3.0.3; 3.1 / JSON Schema dialects are on the roadmap.
 - Auto-discovery is directory-based (`contracts/`, `server/contracts/`) rather
   than a build-time scanner.
+- The generated standalone client (`clientgen`) emits JSON request bodies only.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md). In short: **0.1.0** core contracts + OpenAPI +
-DevTools and **0.2.0** standalone mock server / generated mocks are released;
-next: 0.3.0 extended contract testing, 0.4.0 OpenAPI client generation,
-0.5.0 external API contracts, 0.6.0 contract versioning, 1.0.0 stable API.
+See [ROADMAP.md](ROADMAP.md). `1.0.0` is released: core contracts, runtime
+validation, typed client, SSR transport, registry, mocks, mock server, contract
+testing, OpenAPI generation, generated client, external contracts, versioning,
+**Zod 4 support** and **multipart bodies**. Post-1.0 candidates are listed in
+the roadmap.
 
 ## Development
 
@@ -610,11 +751,15 @@ npm run lint         # eslint
 
 ## Publishing & Versioning
 
-Versioning follows SemVer with the usual 0.x semantics:
+Versioning follows strict SemVer since 1.0.0:
 
-- **0.x.y** (current): `y` (patch) — bug fixes; `x` (minor) — features **and**
-  documented breaking changes (pre-1.0 policy, always listed in CHANGELOG.md).
-- **1.0.0+**: strict SemVer — breaking changes only in major releases.
+- **1.0.x** (patch) — bug fixes, docs, internal changes;
+- **1.x.0** (minor) — new exports, new optional options, new schema kinds;
+- **2.0.0** (major) — breaking changes to anything listed in
+  [docs/public-api.md](docs/public-api.md).
+
+Supported Zod majors are part of the public API (`^3.23.0 || ^4.0.0`); adding a
+major is a minor release, dropping one is a major release.
 
 Release flow:
 

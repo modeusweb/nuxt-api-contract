@@ -7,3 +7,15 @@ playground/.output
 *.log
 *.tgz
 .DS_Store
+
+# Lockfiles are intentionally not tracked: the package supports multiple
+# package managers and is verified against freshly resolved dependencies.
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Local scratch/diagnostic output
+.audit
+
+# Generated CLI output (e.g. `nuxt-api-contract openapi` run in the dev sandbox)
+playground/openapi.json

@@ -43,7 +43,7 @@ describe('emitTsType', () => {
 
   it('handles arrays, records, unions, nested objects', () => {
     expect(emit(z.array(z.number())).type).toBe('Array<number>')
-    expect(emit(z.record(z.string())).type).toBe('Record<string, string>')
+    expect(emit(z.record(z.string(), z.string())).type).toBe('Record<string, string>')
     expect(emit(z.union([z.string(), z.number()])).type).toBe('string | number')
     const nested = z.object({ user: z.object({ id: z.string(), tags: z.array(z.string()) }) })
     expect(emit(nested).type).toContain('"tags": Array<string>')

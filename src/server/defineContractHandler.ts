@@ -14,6 +14,7 @@ import {
   validateContractInput,
   validateContractResponse,
 } from './validation'
+import { readMultipartBody } from './multipart'
 import type { ContractHandlerMeta } from '../testing/callContract'
 
 const CONTRACT_HANDLER_META = Symbol.for('nuxt-api-contract.contractHandlerMeta')
@@ -104,7 +105,12 @@ export function defineContractHandler<C extends AnyApiContract>(
 
       // --- body ---
       let body: TBody
-      if (contract.body) {
+      const multipart = contract.bodyFormat === 'multipart'
+      if (contract.body && multipart) {
+        // multipart/form-data: read the parts and coerce them against the schema.
+        const rawForm = await readMultipartBody(event, contract.body)
+        body = validateContractInput(contract, 'body', contract.body, rawForm) as TBody
+      } else if (contract.body) {
         const rawBody = await readValidatedBody(event, value => value)
         body = validateContractInput(contract, 'body', contract.body, rawBody) as TBody
       } else if (contract.method !== 'GET' && contract.method !== 'HEAD') {

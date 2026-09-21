@@ -24,6 +24,8 @@ export type { ApiErrorPayload, CreateApiErrorInput } from './runtime/shared/erro
 export { toValidationIssues, formatValidationMessage, sanitizeIssues } from './runtime/shared/format'
 export type { ValidationIssue } from './runtime/shared/format'
 export { serializeQuery, serializeQueryValue, stableStringify } from './runtime/shared/serialization'
+export { multipartSchema, isMultipartSchema, resolveBodyFormat, serializeMultipartBody, MULTIPART_SCHEMA } from './runtime/shared/multipart'
+export type { BodyFormat } from './runtime/shared/multipart'
 export type * from './runtime/shared/types'
 export { autoMockContract, generateMockResponse } from './runtime/shared/mock'
 export type { MockGenerateOptions } from './runtime/shared/mock'

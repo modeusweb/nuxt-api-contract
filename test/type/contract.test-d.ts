@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { useApi } from '../../src/client/useApi'
-import { defineApiContract, versionedPath } from '../../src/client'
+import { defineApiContract, multipartSchema, versionedPath } from '../../src/client'
 import { defineContractHandler } from '../../src/server'
 import type { PathParams } from '../../src/shared'
 
@@ -216,6 +216,62 @@ describe('external API contracts (0.5.0)', () => {
     // @ts-expect-error items must be an array of { sku, qty }
     useApi(NestedContract, { body: { items: [{ sku: 1, qty: 1 }], shipping: { type: 'pickup', storeId: 's' } } })
   })
+})
+
+describe('multipart bodies (1.0.0)', () => {
+  const UploadAvatar = defineApiContract({
+    method: 'POST',
+    path: '/api/users/:id/avatar',
+    params: z.object({ id: z.string() }),
+    body: multipartSchema({
+      file: z.file(),
+      caption: z.string().max(120).optional(),
+      crop: z.coerce.boolean().optional(),
+      width: z.coerce.number().int().positive().optional(),
+    }),
+    response: z.object({ url: z.string(), size: z.number() }),
+  })
+
+  it('types multipart bodies (File fields + coerced fields)', async () => {
+    const { data } = await useApi(UploadAvatar, {
+      params: { id: '1' },
+      body: { file: new File(['x'], 'a.png'), caption: 'hello', crop: true, width: 512 },
+    })
+    expectTypeOf(data.value?.url).toEqualTypeOf<string | undefined>()
+    expectTypeOf(data.value?.size).toEqualTypeOf<number | undefined>()
+  })
+
+  it('rejects wrong multipart bodies', () => {
+    // @ts-expect-error file must be a File
+    useApi(UploadAvatar, { params: { id: '1' }, body: { file: 'not-a-file' } })
+    // @ts-expect-error width is coerced to a number
+    useApi(UploadAvatar, { params: { id: '1' }, body: { file: new File(['x'], 'a'), width: '512' } })
+    // @ts-expect-error unknown multipart field
+    useApi(UploadAvatar, { params: { id: '1' }, body: { file: new File(['x'], 'a'), extra: true } })
+    // @ts-expect-error params are still required
+    useApi(UploadAvatar, { body: { file: new File(['x'], 'a') } })
+  })
+
+  it('types the handler body as parsed multipart data', () => {
+    defineContractHandler(UploadAvatar, async ({ params, body }) => {
+      expectTypeOf(params.id).toEqualTypeOf<string>()
+      expectTypeOf(body.file.name).toEqualTypeOf<string>()
+      expectTypeOf(body.width).toEqualTypeOf<number | undefined>()
+      return { url: '/avatar.png', size: body.file.size }
+    })
+  })
+
+  it('exposes the resolved body format', () => {
+    expectTypeOf(UploadAvatar.bodyFormat).toEqualTypeOf<'json' | 'multipart'>()
+    expectTypeOf(UseApiJsonContract.bodyFormat).toEqualTypeOf<'json' | 'multipart'>()
+  })
+})
+
+const UseApiJsonContract = defineApiContract({
+  method: 'POST',
+  path: '/api/json',
+  body: z.object({ name: z.string() }),
+  response: z.object({ ok: z.boolean() }),
 })
 
 describe('contract versioning (0.6.0)', () => {
