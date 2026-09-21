@@ -67,7 +67,7 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "nuxt-api-contract": "./dist/cli.mjs"
+    "nuxt-api-contract": "dist/cli.mjs"
   },
   "main": "./dist/module.mjs",
   "types": "./dist/module.d.mts",
