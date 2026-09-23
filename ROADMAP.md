@@ -14,6 +14,7 @@ re-numbered against actual releases.
 | 0.5.0 | External API contracts (pluggable transports, e.g. GitHub API) | ✅ released |
 | 0.6.0 | Contract versioning helpers (`versionedPath`, `version` registry, negotiation, deprecation) | ✅ released |
 | 1.0.0 | Stable public API (frozen + documented in `docs/public-api.md`), Zod 4 support (dual Zod 3/4 introspection), multipart/file-upload bodies, strict SemVer | ✅ released |
+| 1.1.0 | Audit fixes: typed-error rewrapping, deprecation headers on all response paths, mock delay/range bugs, strict version parsing, real DevTools HTML panel, clientgen requiredness | ✅ released |
 
 Patch releases (1.x.y) carry fixes only; features land in minor releases (1.x.0)
 and any breaking change requires a major release — see

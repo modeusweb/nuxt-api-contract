@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.1.0
+
+Audit release: bug fixes and hardening across the client transport, handler
+pipeline, mock tooling and DevTools panel. The public API is unchanged
+(only additive changes; SemVer patch-level fixes in a minor release per the
+roadmap cadence).
+
+### Fixed
+
+- **`tryRequest` no longer loses `issues` / `details`:** `toContractError` now
+  returns an already-typed `ApiError` untouched instead of re-wrapping it into
+  a bare one (validation issues survived `request` but were dropped by
+  `tryRequest`).
+- **Deprecation headers on every response path:** `Deprecation` / `Sunset` /
+  `Warning` are attached before the pipeline runs, so mocked responses and
+  `ApiError` responses of a deprecated contract carry them too (previously
+  only successful non-mocked responses did).
+- **`ContractMock.delay` is now honored** by `defineContractHandler` (the
+  documented "simulated latency" was previously ignored in-process).
+- **Unexpected handler failures are logged** with contract method/path before
+  answering `500 INTERNAL_ERROR`; expected `ApiError`s stay silent.
+- **`versionedPath` type matches runtime for slash-less paths:**
+  `versionedPath(3, 'users/:id')` is typed `/api/v3/users/:id` (was
+  `/api/v3users/:id`).
+- **Strict API version parsing:** `x-api-version: 2abc` / `?v=1.5` are
+  rejected instead of being `parseInt`-truncated to a version.
+- **Mock generation range bugs:** `z.number().min(1000)` without `max` no
+  longer generates out-of-range values (default max was hardcoded to 100);
+  `min`-padding of format-constrained strings (`email()`, `uuid()`, …) no
+  longer corrupts them (the email local part is padded instead).
+- **Standalone mock server aggregates repeated query params into arrays**
+  (`?tag=a&tag=b` → `['a', 'b']`), matching h3/ufo semantics; single
+  occurrences remain plain strings.
+- **DevTools panel works without `openapi.enabled`:** the contract entry is
+  loaded whenever the panel is active, and `buildDevtoolsHtml` now renders a
+  real self-contained HTML page (table + "Try request" form) instead of raw
+  JSON served as `text/html`.
+- **`callContract` rejects a handler bound to a different contract** with a
+  clear error instead of silently invoking the h3 wrapper as a plain
+  contract handler.
+- **Generated standalone client:** `query` / `headers` parameters are
+  required when their schemas have required fields (were always optional);
+  `buildQueryString` serializes `Date` (ISO), `bigint` and objects the same
+  way the real transport does.
+
 ## 1.0.0
 
 Stable release. The public API is frozen and documented in

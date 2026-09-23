@@ -85,6 +85,41 @@ describe('generateMockResponse', () => {
     expect(mock.password).toBe('********')
     expect(mock.token).toBe('********')
   })
+
+  it('respects open-ended minimums (min without max)', () => {
+    const Contract = defineApiContract({
+      name: 'MockMinOnly',
+      method: 'GET',
+      path: '/api/min-only',
+      response: z.object({ big: z.number().int().min(1000) }),
+    })
+    const mock = generateMockResponse(Contract, { seed: 7 }) as { big: number }
+    expect(mock.big).toBeGreaterThanOrEqual(1000)
+    expect((Contract.response as z.ZodType).safeParse(mock).success).toBe(true)
+  })
+
+  it('keeps format-constrained strings valid when padded for min length', () => {
+    const Contract = defineApiContract({
+      name: 'MockLongEmail',
+      method: 'GET',
+      path: '/api/long-email',
+      response: z.object({ email: z.string().email().min(40) }),
+    })
+    const mock = generateMockResponse(Contract, { seed: 7 }) as { email: string }
+    expect(mock.email.length).toBeGreaterThanOrEqual(40)
+    expect(z.string().email().safeParse(mock.email).success).toBe(true)
+  })
+
+  it('still satisfies plain min-length strings', () => {
+    const Contract = defineApiContract({
+      name: 'MockLongSlug',
+      method: 'GET',
+      path: '/api/long-slug',
+      response: z.object({ slug: z.string().min(30) }),
+    })
+    const mock = generateMockResponse(Contract, { seed: 7 }) as { slug: string }
+    expect(mock.slug.length).toBeGreaterThanOrEqual(30)
+  })
 })
 
 describe('autoMockContract', () => {

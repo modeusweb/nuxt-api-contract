@@ -36,6 +36,10 @@ interface GeneratedOperation {
   requiresParams: boolean
   /** The client must always send a body. */
   requiresBody: boolean
+  /** The query schema (when present) has at least one required property. */
+  requiresQuery: boolean
+  /** The headers schema (when present) has at least one required property. */
+  requiresHeaders: boolean
   /** The params schema is a ZodObject (merged interface emission). */
   paramsIsObject: boolean
 }
@@ -85,7 +89,7 @@ function hasRequiredProp(schema: ZodType): boolean {
 }
 
 /** Computes requiredness flags for one operation. */
-function computeInputShape(contract: AnyApiContract): Pick<GeneratedOperation, 'requiresParams' | 'requiresBody' | 'paramsIsObject'> {
+function computeInputShape(contract: AnyApiContract): Pick<GeneratedOperation, 'requiresParams' | 'requiresBody' | 'requiresQuery' | 'requiresHeaders' | 'paramsIsObject'> {
   const pathNames = pathParamNames(contract.path)
   let schemaRequired = false
   let paramsIsObject = false
@@ -102,6 +106,8 @@ function computeInputShape(contract: AnyApiContract): Pick<GeneratedOperation, '
   return {
     requiresParams: pathNames.length > 0 || schemaRequired,
     requiresBody: bodyRequired,
+    requiresQuery: contract.query ? hasRequiredProp(contract.query as ZodType) : false,
+    requiresHeaders: contract.headers ? hasRequiredProp(contract.headers as ZodType) : false,
     paramsIsObject,
   }
 }
@@ -164,9 +170,9 @@ function emitOperation(operation: GeneratedOperation): string {
 
   const inputParts: string[] = []
   if (hasParams) inputParts.push(`params${operation.requiresParams ? '' : '?'}: ${operation.typeName}Params`)
-  if (contract.query) inputParts.push(`query?: ${operation.typeName}Query`)
+  if (contract.query) inputParts.push(`query${operation.requiresQuery ? '' : '?'}: ${operation.typeName}Query`)
   if (contract.body) inputParts.push(`body${operation.requiresBody ? '' : '?'}: ${operation.typeName}Body`)
-  if (contract.headers) inputParts.push(`headers?: ${operation.typeName}Headers`)
+  if (contract.headers) inputParts.push(`headers${operation.requiresHeaders ? '' : '?'}: ${operation.typeName}Headers`)
 
   const needsInput = inputParts.length > 0
   const inputType = needsInput ? `{\n    ${inputParts.join('\n    ')}\n  }` : null
@@ -236,12 +242,18 @@ function buildPath(path: string, params: Record<string, unknown> | undefined): s
 function buildQueryString(query: Record<string, unknown> | undefined): string {
   if (!query) return ''
   const search = new URLSearchParams()
+  const serialize = (value: unknown): string => {
+    if (value instanceof Date) return value.toISOString()
+    if (typeof value === 'bigint') return value.toString()
+    if (value !== null && typeof value === 'object') return JSON.stringify(value)
+    return String(value)
+  }
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined || value === null) continue
     if (Array.isArray(value)) {
-      for (const item of value) search.append(key, String(item))
+      for (const item of value) search.append(key, serialize(item))
     } else {
-      search.append(key, String(value))
+      search.append(key, serialize(value))
     }
   }
   const encoded = search.toString()
@@ -312,6 +324,8 @@ export function generateClientSource(
       typeName: contractTypeName(contract, usedTypeNames),
       requiresParams: shape.requiresParams,
       requiresBody: shape.requiresBody,
+      requiresQuery: shape.requiresQuery,
+      requiresHeaders: shape.requiresHeaders,
       paramsIsObject: shape.paramsIsObject,
     }
   })

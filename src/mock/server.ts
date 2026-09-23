@@ -92,9 +92,9 @@ export function buildMockMatchers(contracts: AnyApiContract[]): Matcher[] {
       return true
     })
     .map(contract => {
-    const { regex, names } = pathToRegex(contract.path)
-    return { contract, method: contract.method, regex, names }
-  })
+      const { regex, names } = pathToRegex(contract.path)
+      return { contract, method: contract.method, regex, names }
+    })
 }
 
 /** Reads and JSON-parses a request body (never throws). */
@@ -168,9 +168,17 @@ export function createMockServer(options: MockServerOptions): Server {
         params[name] = decodeURIComponent(exec?.groups?.[name] ?? '')
       }
 
-      const query: Record<string, string> = {}
+      const query: Record<string, string | string[]> = {}
       for (const [key, value] of url.searchParams.entries()) {
-        query[key] = value
+        // Mirror h3/ufo semantics: repeated keys arrive as arrays.
+        const existing = query[key]
+        if (existing === undefined) {
+          query[key] = value
+        } else if (Array.isArray(existing)) {
+          existing.push(value)
+        } else {
+          query[key] = [existing, value]
+        }
       }
 
       let body: unknown

@@ -12,7 +12,7 @@ const { data, error } = await useApi(GetUserContract, {
 const list = ref<Awaited<ReturnType<typeof fetchList>> | null>(null)
 
 async function fetchList() {
-  const client = await useApiClient()
+  const client = useApiClient()
   return client.request(ListUsersContract, { query: { page: 1, limit: 10 } })
 }
 

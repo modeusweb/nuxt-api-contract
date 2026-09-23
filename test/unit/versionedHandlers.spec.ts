@@ -61,6 +61,12 @@ describe('resolveRequestedApiVersion', () => {
     expect(resolveRequestedApiVersion(createTestEvent('/api/users/1?v=0'))).toBeUndefined()
     expect(resolveRequestedApiVersion(createTestEvent('/api/users/1', { 'x-api-version': 'nan' }))).toBeUndefined()
   })
+
+  it('rejects values that only start with a number (strict parsing)', () => {
+    expect(resolveRequestedApiVersion(createTestEvent('/api/users/1', { 'x-api-version': '2abc' }))).toBeUndefined()
+    expect(resolveRequestedApiVersion(createTestEvent('/api/users/1?v=2abc'))).toBeUndefined()
+    expect(resolveRequestedApiVersion(createTestEvent('/api/users/1?v=1.5'))).toBeUndefined()
+  })
 })
 
 describe('defineVersionedHandlers', () => {

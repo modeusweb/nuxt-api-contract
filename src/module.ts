@@ -137,11 +137,18 @@ export default defineNuxtModule<ApiContractModuleOptions>({
     const openapi = { ...OPENAPI_DEFAULTS, ...(options.openapi ?? {}) }
     let contracts: AnyApiContract[] = []
     const openapiEnabled = openapi.enabled === true
+    const devtoolsActive = Boolean(options.devtools) && nuxt.options.dev === true
 
-    if (openapiEnabled) {
+    // The contract entry feeds both the OpenAPI document and the DevTools
+    // panel — load it when either feature needs it (not only for OpenAPI).
+    if (openapiEnabled || devtoolsActive) {
       const entryPath = isAbsolute(openapi.entry!) ? openapi.entry! : resolve(rootDir, openapi.entry!)
       if (!existsSync(entryPath)) {
-        console.warn(`[nuxt-api-contract] OpenAPI entry "${openapi.entry}" not found; generation skipped.`)
+        console.warn(
+          openapiEnabled
+            ? `[nuxt-api-contract] OpenAPI entry "${openapi.entry}" not found; generation skipped.`
+            : `[nuxt-api-contract] Contract entry "${openapi.entry}" not found; the DevTools panel will be empty.`,
+        )
       } else {
         const jiti = createJiti(import.meta.url, { interopDefault: true })
         const loaded = (await jiti.import(entryPath)) as unknown
@@ -151,28 +158,31 @@ export default defineNuxtModule<ApiContractModuleOptions>({
             ? Object.values(loaded as Record<string, unknown>)
             : []
         contracts = pickContracts(values)
-        const { document, warnings } = generateOpenApiDocument(contracts, {
-          title: openapi.title,
-          version: openapi.version,
-          description: openapi.description,
-        })
-        for (const warning of warnings) {
-          console.warn(`[nuxt-api-contract] OpenAPI warning (${warning.contract}): ${warning.message}`)
-        }
-        const buildDir = resolve(nuxt.options.buildDir, 'api-contracts')
-        mkdirSync(buildDir, { recursive: true })
-        const outputPath = resolve(buildDir, 'openapi.mjs')
-        writeFileSync(outputPath, `export const document = ${JSON.stringify(document)}\n`, 'utf8')
-        nuxt.options.alias['#api-contracts-openapi'] = outputPath
-        addServerHandler({
-          route: openapi.path!,
-          handler: resolver.resolve('./runtime/server/openapiRoute'),
-        })
       }
     }
 
+    if (openapiEnabled && contracts.length > 0) {
+      const { document, warnings } = generateOpenApiDocument(contracts, {
+        title: openapi.title,
+        version: openapi.version,
+        description: openapi.description,
+      })
+      for (const warning of warnings) {
+        console.warn(`[nuxt-api-contract] OpenAPI warning (${warning.contract}): ${warning.message}`)
+      }
+      const buildDir = resolve(nuxt.options.buildDir, 'api-contracts')
+      mkdirSync(buildDir, { recursive: true })
+      const outputPath = resolve(buildDir, 'openapi.mjs')
+      writeFileSync(outputPath, `export const document = ${JSON.stringify(document)}\n`, 'utf8')
+      nuxt.options.alias['#api-contracts-openapi'] = outputPath
+      addServerHandler({
+        route: openapi.path!,
+        handler: resolver.resolve('./runtime/server/openapiRoute'),
+      })
+    }
+
     /* --- DevTools panel (optional, no hard runtime dependency) --- */
-    if (options.devtools && nuxt.options.dev) {
+    if (devtoolsActive) {
       const buildDir = resolve(nuxt.options.buildDir, 'api-contracts')
       mkdirSync(buildDir, { recursive: true })
       const htmlPath = resolve(buildDir, 'devtools.mjs')

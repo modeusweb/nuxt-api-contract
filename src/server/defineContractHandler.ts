@@ -1,7 +1,7 @@
 import type { EventHandler, H3Event } from 'h3'
 import { defineEventHandler, getQuery, getRequestHeaders, readValidatedBody, setResponseStatus } from 'h3'
 import type { z } from 'zod'
-import type { AnyApiContract, MaybePromise, ContractHandlerResponse  } from '../runtime/shared/types'
+import type { AnyApiContract, MaybePromise, ContractHandlerResponse } from '../runtime/shared/types'
 
 import { ApiError, BUILT_IN_ERROR_CODES, createApiError, serializeApiError } from '../runtime/shared/errors'
 import type { ApiErrorPayload } from '../runtime/shared/errors'
@@ -73,6 +73,14 @@ export function defineContractHandler<C extends AnyApiContract>(
   type THeaders = C['headers'] extends z.ZodType ? z.infer<C['headers']> : Record<string, string>
 
   const eventHandler = defineEventHandler(async (event: H3Event) => {
+    // --- deprecation headers (0.6.0 contract versioning) ---
+    // Attached before the pipeline so mocked responses and `ApiError`
+    // responses of a deprecated contract carry them too.
+    if (isDeprecatedContract(contract)) {
+      for (const [header, value] of Object.entries(getDeprecationHeaders(contract))) {
+        event.node.res.setHeader(header, value)
+      }
+    }
     try {
       // --- headers (validated as a plain string record) ---
       let headers: THeaders
@@ -134,6 +142,9 @@ export function defineContractHandler<C extends AnyApiContract>(
         ? { response: () => generateMockResponse(contract) }
         : undefined)
       if (runtimeConfig.mocks && mock?.response) {
+        if (mock.delay && mock.delay > 0) {
+          await new Promise(resolveDelay => setTimeout(resolveDelay, mock.delay))
+        }
         const mocked = await mock.response()
         return finalize(contract, mocked, runtimeConfig)
       }
@@ -142,16 +153,9 @@ export function defineContractHandler<C extends AnyApiContract>(
 
       const finalized = finalize(contract, result, runtimeConfig)
 
-      // --- deprecation headers (0.6.0 contract versioning) ---
-      if (isDeprecatedContract(contract)) {
-        for (const [header, value] of Object.entries(getDeprecationHeaders(contract))) {
-          event.node.res.setHeader(header, value)
-        }
-      }
-
       return finalized
     } catch (error) {
-      return respondWithError(event, error)
+      return respondWithError(event, contract, error)
     }
   })
 
@@ -180,11 +184,17 @@ function finalize<C extends AnyApiContract>(
 }
 
 /** Produces the unified error payload with the proper status code. */
-function respondWithError(event: H3Event, error: unknown): ApiErrorPayload {
+function respondWithError(event: H3Event, contract: AnyApiContract, error: unknown): ApiErrorPayload {
   if (error instanceof ApiError) {
     setResponseStatus(event, error.statusCode, error.code)
     return serializeApiError(error)
   }
+  // Unexpected (non-ApiError) failures must be visible in server logs —
+  // otherwise a 500 leaves no trace for the developer.
+  console.error(
+    `[nuxt-api-contract] Unhandled error in ${contract.method} ${contract.path}:`,
+    error,
+  )
   setResponseStatus(event, 500, BUILT_IN_ERROR_CODES.internal)
   return {
     error: {

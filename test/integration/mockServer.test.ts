@@ -26,10 +26,17 @@ const Create = defineApiContract({
   response: z.object({ id: z.string(), name: z.string(), email: z.string() }),
 })
 
+const Tags = defineApiContract({
+  method: 'GET',
+  path: '/api/tags',
+  query: z.object({ tag: z.array(z.string().min(1)).min(2) }),
+  response: z.object({ tags: z.array(z.string()) }),
+})
+
 let handle: MockServerHandle
 
 beforeAll(async () => {
-  handle = await startMockServer({ contracts: [User, List, Create], port: 0, seed: 42 })
+  handle = await startMockServer({ contracts: [User, List, Create, Tags], port: 0, seed: 42 })
 })
 
 afterAll(async () => {
@@ -87,6 +94,20 @@ describe('standalone mock server', () => {
     const response = await fetch(`${handle.url}/api/users/1`, { method: 'OPTIONS' })
     expect(response.status).toBe(204)
     expect(response.headers.get('access-control-allow-origin')).toBe('*')
+  })
+
+  it('aggregates repeated query params into arrays like h3/ufo does', async () => {
+    // Repeated keys must arrive as an array so `.array().min(2)` validates.
+    const response = await fetch(`${handle.url}/api/tags?tag=a&tag=b`)
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { tags: string[] }
+    expect(Tags.response!.safeParse(body).success).toBe(true)
+
+    // A single occurrence stays a plain string, so a `.min(2)` array schema rejects it.
+    const single = await fetch(`${handle.url}/api/tags?tag=a`)
+    expect(single.status).toBe(400)
+    const payload = (await single.json()) as { error?: { code?: string } }
+    expect(payload.error?.code).toBe('VALIDATION_ERROR')
   })
 
   it('lists available mock endpoints', async () => {

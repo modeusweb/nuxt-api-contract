@@ -127,11 +127,22 @@ function mockString(key: string, checks: ZodCheck[], ctx: RngContext): string {
   }
 
   const minLength = numericCheck(checks, 'min') ?? numericCheck(checks, 'length')
-  if (minLength !== undefined) {
-    while (value.length < minLength) value += '-filler'
-  }
   const maxLength = numericCheck(checks, 'max') ?? numericCheck(checks, 'length')
-  if (maxLength !== undefined && value.length > maxLength) {
+  // Format-constrained values (email, uuid, datetime, …) have a fixed
+  // structure: naive padding/truncation would invalidate them, so only the
+  // email local part is padded and other formats are left untouched.
+  if (minLength !== undefined && value.length < minLength) {
+    if (hasFormat(checks, 'email') && value.includes('@')) {
+      const at = value.indexOf('@')
+      let local = value.slice(0, at)
+      const domain = value.slice(at)
+      while (local.length + domain.length < minLength) local += '-filler'
+      value = `${local}${domain}`
+    } else if (!checks.some(check => check.kind === 'format')) {
+      while (value.length < minLength) value += '-filler'
+    }
+  }
+  if (maxLength !== undefined && value.length > maxLength && !checks.some(check => check.kind === 'format')) {
     value = value.slice(0, maxLength)
   }
   return value
@@ -139,8 +150,13 @@ function mockString(key: string, checks: ZodCheck[], ctx: RngContext): string {
 
 function mockNumber(checks: ZodCheck[], ctx: RngContext): number {
   const isInt = hasCheck(checks, 'int')
-  const min = numericCheck(checks, 'min') ?? 1
-  const max = numericCheck(checks, 'max') ?? 100
+  // Only constrain the range when the schema does: an open-ended `min(1000)`
+  // must not be paired with the arbitrary default max of 100 (which would
+  // generate out-of-range values).
+  const schemaMin = numericCheck(checks, 'min')
+  const schemaMax = numericCheck(checks, 'max')
+  const min = schemaMin ?? (schemaMax !== undefined && schemaMax < 1 ? schemaMax : 1)
+  const max = schemaMax ?? Math.max(100, min)
   const multipleOf = numericCheck(checks, 'multipleOf')
   if (multipleOf !== undefined && multipleOf > 0) {
     const minMul = Math.max(1, Math.ceil(min / multipleOf))

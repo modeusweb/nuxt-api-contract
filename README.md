@@ -6,7 +6,7 @@ Define a contract **once** — get runtime validation, fully typed client calls,
 a unified error format, OpenAPI generation, mocks, contract tests and a
 DevTools panel from the same source of truth.
 
-> Status: **1.0.0** — stable public API, strict SemVer. The supported surface is
+> Status: **1.1.0** — stable public API, strict SemVer. The supported surface is
 > documented in [docs/public-api.md](docs/public-api.md).
 
 ## Why
@@ -420,7 +420,7 @@ export const StripeCharge = defineApiContract({
 - a custom transport can be plugged in:
 
 ```ts
-const api = await useApiClient({
+const api = useApiClient({
   transport: async (url, init) => {
     // sign, retry, route through a proxy — anything
     const response = await fetch(url, init as RequestInit)
@@ -733,11 +733,11 @@ Behavior:
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md). `1.0.0` is released: core contracts, runtime
+See [ROADMAP.md](ROADMAP.md). `1.1.0` is released: core contracts, runtime
 validation, typed client, SSR transport, registry, mocks, mock server, contract
 testing, OpenAPI generation, generated client, external contracts, versioning,
-**Zod 4 support** and **multipart bodies**. Post-1.0 candidates are listed in
-the roadmap.
+**Zod 4 support**, **multipart bodies** and the audit fixes below.
+Post-1.0 candidates are listed in the roadmap.
 
 ## Development
 

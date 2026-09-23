@@ -50,4 +50,16 @@ describe('callContract', () => {
     const { data } = await callContract(GetUser, plain, { params: { id: 'u2' } })
     expect(data).toEqual({ id: 'u2', name: 'X' })
   })
+
+  it('rejects a handler bound to a different contract', async () => {
+    const Other = defineApiContract({
+      name: 'CallContractOther',
+      method: 'GET',
+      path: '/api/call-contract-other',
+      response: z.object({ ok: z.boolean() }),
+    })
+    const otherHandler = defineContractHandler(Other, async () => ({ ok: true }))
+    await expect(callContract(GetUser, otherHandler, { params: { id: 'u1' } }))
+      .rejects.toThrow(/handler bound to GET \/api\/call-contract-other/)
+  })
 })

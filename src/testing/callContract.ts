@@ -102,8 +102,16 @@ type EventHandlerLike = (ctx: Record<string, unknown>) => Awaitable<unknown>
 /** Extracts the original handler from a `defineContractHandler` result or accepts a plain function. */
 function extractHandler<C extends AnyApiContract>(contract: C, handler: unknown): ContractHandlerMeta['handler'] {
   const meta = (handler as InternalContractHandler)[CONTRACT_HANDLER_META]
-  if (meta && meta.contract.path === contract.path && meta.contract.method === contract.method) {
-    return meta.handler
+  if (meta) {
+    if (meta.contract.path === contract.path && meta.contract.method === contract.method) {
+      return meta.handler
+    }
+    // An h3 wrapper for a *different* contract must not be invoked as a plain
+    // contract handler — that would silently run with the wrong validation.
+    throw new Error(
+      `[nuxt-api-contract] callContract received a handler bound to ${meta.contract.method} ${meta.contract.path}, `
+      + `but was called with ${contract.method} ${contract.path}.`,
+    )
   }
   if (typeof handler === 'function') {
     return handler as ContractHandlerMeta['handler']

@@ -24,16 +24,22 @@ export const API_VERSION_QUERY = 'v'
  * integer.
  */
 export function resolveRequestedApiVersion(event: H3Event): number | undefined {
+  // Strict parsing: `parseInt('2abc') === 2` must not pass as a version.
+  const parse = (raw: string): number | undefined => {
+    if (!/^\d+$/.test(raw.trim())) return undefined
+    const parsed = Number(raw.trim())
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined
+  }
   const headerValue = getRequestHeader(event, API_VERSION_HEADER)
   if (headerValue) {
-    const parsed = Number.parseInt(headerValue, 10)
-    if (Number.isInteger(parsed) && parsed > 0) return parsed
+    const parsed = parse(headerValue)
+    if (parsed !== undefined) return parsed
   }
   const query = getQuery(event) as { v?: unknown }
   const rawQuery = query.v
   if (typeof rawQuery === 'string' || typeof rawQuery === 'number') {
-    const parsed = Number.parseInt(String(rawQuery), 10)
-    if (Number.isInteger(parsed) && parsed > 0) return parsed
+    const parsed = parse(String(rawQuery))
+    if (parsed !== undefined) return parsed
   }
   return undefined
 }

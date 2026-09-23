@@ -280,6 +280,12 @@ describe('contract versioning (0.6.0)', () => {
     expectTypeOf(path).toEqualTypeOf<'/api/v2/users/:id'>()
   })
 
+  it('versionedPath normalizes a missing leading slash in the type too', () => {
+    const path = versionedPath(3, 'users/:id')
+    expectTypeOf(path).toEqualTypeOf<'/api/v3/users/:id'>()
+    expectTypeOf(path).toEqualTypeOf<`/api/v${3}/users/:id`>()
+  })
+
   it('PathParams still works on versioned paths', () => {
     type Params = PathParams<ReturnType<typeof versionedPath<2, '/users/:id'>>>
     expectTypeOf<Params>().toEqualTypeOf<{ id: string }>()

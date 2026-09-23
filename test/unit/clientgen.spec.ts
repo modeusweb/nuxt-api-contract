@@ -124,6 +124,20 @@ describe('generateClientSource', () => {
     expect(source).toMatch(/query\?: GetUserQuery/)
   })
 
+  it('marks query required when the query schema has required fields', () => {
+    const Search = defineApiContract({
+      name: 'RequiredQuerySearch',
+      method: 'GET',
+      path: '/api/required-query-search',
+      query: z.object({ q: z.string() }),
+      response: z.object({ ok: z.boolean() }),
+    })
+    const result = generateClientSource([Search])
+    expect(syntaxDiagnostics(result.source)).toEqual([])
+    expect(result.source).toMatch(/query: RequiredQuerySearchQuery/)
+    expect(result.source).not.toMatch(/query\?: RequiredQuerySearchQuery/)
+  })
+
   it('emits Promise<Response> return types', () => {
     expect(source).toContain('Promise<GetUserResponse>')
     expect(source).toContain('Promise<CreateUserResponse>')

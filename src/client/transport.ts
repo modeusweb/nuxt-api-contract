@@ -1,6 +1,6 @@
-import type { AnyApiContract, ApiRequestOptions, ContractClientResponse, ResolvedApiRequestOptions  } from '../runtime/shared/types'
+import type { AnyApiContract, ApiRequestOptions, ContractClientResponse, ResolvedApiRequestOptions } from '../runtime/shared/types'
 import { resolveContractUrl } from '../runtime/shared/contract'
-import { ApiError, parseApiErrorPayload, toApiError } from '../runtime/shared/errors'
+import { ApiError, isApiError, parseApiErrorPayload, toApiError } from '../runtime/shared/errors'
 import { serializeQuery, stableStringify } from '../runtime/shared/serialization'
 import { resolveBodyFormat, serializeMultipartBody } from '../runtime/shared/multipart'
 
@@ -34,6 +34,9 @@ export function resolveRequestOptions(options: ApiRequestOptions<AnyApiContract>
  * contract handlers and wraps everything else into `INTERNAL_ERROR`.
  */
 export function toContractError(error: unknown): ApiError {
+  // Already a typed ApiError (e.g. re-wrapping inside `tryRequest`): keep it
+  // intact so `issues` / `details` survive the round trip.
+  if (isApiError(error)) return error
   const errWithData = error as { data?: unknown; statusCode?: unknown }
   if (errWithData && typeof errWithData === 'object' && 'data' in errWithData) {
     const payload = parseApiErrorPayload(errWithData.data)

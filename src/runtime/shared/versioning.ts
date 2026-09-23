@@ -17,17 +17,20 @@ import { listRegisteredContracts } from './contract'
  * `versionedPath(2, '/api/users/:id')` -> `/api/v2/users/:id`.
  *
  * The return type is a template literal, so path-parameter inference keeps
- * working through `PathParams` when used inside `defineApiContract`.
+ * working through `PathParams` when used inside `defineApiContract`. Paths
+ * without a leading slash get one both at runtime and in the type.
  */
 export function versionedPath<const TVersion extends number, const TPath extends string>(
   version: TVersion,
   path: TPath,
-): `/api/v${TVersion}${TPath}` {
+): TPath extends `/${string}` ? `/api/v${TVersion}${TPath}` : `/api/v${TVersion}/${TPath}` {
   if (!Number.isInteger(version) || version < 1) {
     throw new Error(`[nuxt-api-contract] versionedPath: version must be a positive integer, received ${version}`)
   }
   const suffix = path.startsWith('/') ? path : `/${path}`
-  return `/api/v${version}${suffix}` as `/api/v${TVersion}${TPath}`
+  return `/api/v${version}${suffix}` as TPath extends `/${string}`
+    ? `/api/v${TVersion}${TPath}`
+    : `/api/v${TVersion}/${TPath}`
 }
 
 /** True when the (absolute) path already contains a `/v<digits>` segment. */

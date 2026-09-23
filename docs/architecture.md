@@ -167,9 +167,12 @@ envelope), so the client reads `FetchError.data` as `{ error: {...} }`.
 5. If `openapi.enabled`: jiti-load the entry, generate the document, write
    `.nuxt/api-contracts/openapi.mjs`, alias `#api-contracts-openapi`, add a
    Nitro route serving it.
-6. If `devtools` (dev only): write panel data to
-   `.nuxt/api-contracts/devtools.mjs`, alias `#api-contracts-devtools`, add a
-   Nitro route; try dynamic `@nuxt/devtools-kit` custom-tab registration.
+6. If `devtools` (dev only) **or** `openapi.enabled`: jiti-load the contract
+   entry; if `devtools`, render the panel page (contract table + "Try
+   request" form) to `.nuxt/api-contracts/devtools.mjs`, alias
+   `#api-contracts-devtools`, add a Nitro route serving it as `text/html`;
+   try dynamic `@nuxt/devtools-kit` custom-tab registration. OpenAPI document
+   generation happens only when `openapi.enabled`.
 
 ## Dependency graph (runtime, client bundle)
 

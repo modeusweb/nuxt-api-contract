@@ -1,6 +1,6 @@
 {
   "name": "nuxt-api-contract",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Type-safe API contracts between Nitro server routes and the Nuxt client.",
   "type": "module",
   "license": "MIT",
@@ -9,8 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/modeusweb/nuxt-api-contract.git",
-    "directory": ""
+    "url": "git+https://github.com/modeusweb/nuxt-api-contract.git"
   },
   "bugs": {
     "url": "https://github.com/modeusweb/nuxt-api-contract/issues"
