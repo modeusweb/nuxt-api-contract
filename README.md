@@ -6,8 +6,13 @@ Define a contract **once** — get runtime validation, fully typed client calls,
 a unified error format, OpenAPI generation, mocks, contract tests and a
 DevTools panel from the same source of truth.
 
-> Status: **1.1.0** — stable public API, strict SemVer. The supported surface is
+> Status: **1.2.0** — stable public API, strict SemVer. The supported surface is
 > documented in [docs/public-api.md](docs/public-api.md).
+>
+> Requirements: **Nuxt >= 3.15** (verified end-to-end against Nuxt 4.5) and
+> **Node >= 20.19** for the package itself — Nuxt 4 requires
+> `^22.19.0 || ^24.11.0 || >=26.0.0` on its own. Zod 3 or 4
+> (`^3.23.0 || ^4.0.0`).
 
 ## Why
 
@@ -30,9 +35,20 @@ Contract ─────────┼── TypeScript types (params / query /
 
 ## Installation
 
+Prerequisites: an existing Nuxt app on **Nuxt >= 3.15** (verified end-to-end
+against Nuxt 4.5). `nuxt` and `vue` are deliberately *not* part of the command
+below — this module is added to an app that already has them, and installing
+`nuxt` again would pull a second copy of the framework. Starting from scratch?
+Create the app first (official Nuxt 4 command):
+
 ```bash
+npm create nuxt@latest my-app
+cd my-app
 npm install nuxt-api-contract zod
 ```
+
+The module declares `nuxt: '>=3.15.0'` as its compatibility range, so an
+incompatible Nuxt version is reported at build time by Nuxt itself.
 
 Add the module:
 
@@ -733,21 +749,64 @@ Behavior:
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md). `1.1.0` is released: core contracts, runtime
+See [ROADMAP.md](ROADMAP.md). `1.2.0` is released: core contracts, runtime
 validation, typed client, SSR transport, registry, mocks, mock server, contract
 testing, OpenAPI generation, generated client, external contracts, versioning,
-**Zod 4 support**, **multipart bodies** and the audit fixes below.
-Post-1.0 candidates are listed in the roadmap.
+**Zod 4 support**, **multipart bodies**, the 1.1.0 audit fixes and the
+**Nuxt 4 toolchain** (module `addServerTemplate` usage + auto-import resolution
+fixes). Post-1.0 candidates are listed in the roadmap.
 
 ## Development
 
 ```bash
 npm run build        # build the package (unbuild)
+npm run dev:prepare  # unbuild --stub (stub the entries for the playground)
 npm run test         # unit + integration tests
 npm run test:type    # type tests (vitest typecheck)
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
 ```
+
+The playground is a real Nuxt 4 app and uses the Nuxt 4 directory layout:
+
+```text
+playground/
+├── app/               # app.vue + pages/ (the Nuxt 4 `srcDir`)
+├── contracts/         # contracts shared by server and client (module option)
+├── server/api/        # defineContractHandler routes
+└── nuxt.config.ts     # modules: ['../src/module'] — the module runs from source
+```
+
+Run it with `npm run dev:prepare && npx nuxt dev playground`: the module is
+loaded from `src/`, which is also the configuration that catches auto-import
+resolution bugs (see [Dependencies & pinned majors](#dependencies--pinned-majors)).
+The e2e suite (`test/integration/playground.test.ts`) builds and serves the same
+playground with `@nuxt/test-utils`.
+
+To run the e2e suite against the **built** package instead of the source (the
+npm-consumer code path: `dist/module.mjs`, `dist/runtime/**` Nitro routes,
+`dist/*.mjs` auto-import entries), build first and set
+`API_CONTRACT_MODULE=dist`:
+
+```bash
+npm run build
+# PowerShell:  $env:API_CONTRACT_MODULE='dist'; npm run test:integration
+# bash:        API_CONTRACT_MODULE=dist npm run test:integration
+```
+
+### Dependencies & pinned majors
+
+Every dependency is kept on its latest release, with three deliberate
+exceptions that are documented because they are *not* accidental:
+
+| Package | Range | Why not `latest` |
+| --- | --- | --- |
+| `h3` | `^1.15.11` | npm `latest` is `2.0.1-rc.x`, a release candidate. Nuxt 4.5 / Nitro 2 (`@nuxt/nitro-server`) ship `h3 ^1.15.11`; a second copy would give the runtime two incompatible `H3Event` definitions. |
+| `typescript` | `^5.9.3` | `unbuild`'s declaration step (`rollup-plugin-dts`) declares a `typescript ^4.5 \|\| ^5.0` peer; TypeScript 7 is the native (Go) compiler port without the JS compiler API, so builds/type tests cannot use it yet. |
+| `vite` | `^8.3.0` | Vitest 5 declares Vite as a *required* peer, so it is an explicit dev dependency. Vite 8 is also what `@nuxt/vite-builder` 4.5 uses. |
+
+`zod` stays a peer dependency (`^3.23.0 || ^4.0.0`) — adding a Zod major is a
+minor release, dropping one is a major release.
 
 ## Publishing & Versioning
 

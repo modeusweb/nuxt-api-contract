@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { GetUserContract, ListUsersContract } from '../../contracts/users'
+import { GetUserContract, ListUsersContract } from '~~/contracts/users'
 
 const route = useRoute()
 

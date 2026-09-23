@@ -1,5 +1,75 @@
 # Changelog
 
+## 1.2.0
+
+Dependency and Nuxt 4 release: the toolchain moved to the latest majors (Nuxt
+4.5, Vite 8, Vitest 5, ESLint 10) and two build-time defects that surfaced when
+the module runs from source were fixed. No public API changes.
+
+### Added
+
+- **Nuxt 4 support**, verified end-to-end against Nuxt `4.5.2` (the module keeps
+  declaring `nuxt: '>=3.15.0'`; the runtime uses no Nuxt-4-only APIs). The
+  playground now follows the Nuxt 4 layout — `playground/app/` for `app.vue` and
+  `pages/`, with `server/` and `contracts/` at the root — and shares contracts
+  through the `~~` root alias.
+- `playground/server/api/users/[id].delete.ts` consumes the module's Nitro
+  auto-import preset (`defineContractHandler`, `createApiError`) instead of
+  importing them, so the e2e suite fails loudly if auto-import injection ever
+  regresses again.
+
+### Docs
+
+- The installation section now states the prerequisites explicitly
+  (`Nuxt >= 3.15`, Node requirements) and explains why `nuxt` / `vue` are **not**
+  part of `npm install nuxt-api-contract zod` — the module is added to an
+  existing app, and installing `nuxt` again would add a second copy of the
+  framework. A from-scratch example uses the current official command
+  (`npm create nuxt@latest my-app`).
+
+### Fixed
+
+- **Auto-imports now use resolved entry paths** (`src/module.ts`):
+  `addImports()` and the Nitro preset registered the bare specifiers
+  `nuxt-api-contract/client|composables|server`. Those only resolve when the
+  package is installed in `node_modules`; when the module is loaded from source
+  (`modules: ['../src/module']`, module development, the playground) or before
+  `dist` is built, Nuxt cannot resolve them and **silently disables every
+  auto-import** (`NUXT_B6005`). Entries are resolved relative to
+  `import.meta.url`, which works from `dist/module.mjs` **and** `src/module.ts`.
+- **OpenAPI document and DevTools panel are injected with
+  `addServerTemplate()`** instead of being written to
+  `buildDir/api-contracts/*.mjs` and exposed through a hand-written
+  `#api-contracts-*` alias. This is the supported Nuxt 4 mechanism, keeps the
+  generated modules out of `buildDir`, and regenerates their contents on every
+  (re)build instead of freezing the document produced during module setup.
+- **Contract auto-import directories** are registered through `addImportsDir()`
+  rather than by pushing a hand-built relative path into
+  `nuxt.options.imports.dirs`.
+
+### Changed
+
+- Dependencies refreshed to the latest releases: `nuxt@4.5`, `@nuxt/kit` /
+  `@nuxt/schema@4.5`, `@nuxt/test-utils@4.3`, `@nuxt/eslint-config@1.17`,
+  `eslint@10`, `vitest@5`, `defu@6.1.7`, `jiti@2.7`; `vite@8` is a new dev
+  dependency (Vitest 5 declares Vite as a required peer).
+- Deliberate pins, documented in
+  [README → Dependencies & pinned majors](README.md#dependencies--pinned-majors):
+  - `h3` stays at `^1.15.11` — the npm `latest` (`2.0.1-rc.x`) is a release
+    candidate that Nitro 2 (Nuxt 4.5's server engine) does not use; a second
+    copy would introduce incompatible `H3Event` definitions;
+  - `typescript` stays at `^5.9.3` — `unbuild`'s `rollup-plugin-dts` declares a
+    `typescript ^4.5 || ^5.0` peer and TypeScript 7 is the native compiler port
+    without the JS compiler API.
+- `engines.node` raised from `>=18.20.0` to `>=20.19.0` (Vite 8 requires
+  `^20.19.0 || >=22.12.0`; Nuxt 4 itself requires `^22.19.0 || ^24.11.0 || >=26`).
+
+### Verified
+
+`npm run lint`, `npm run typecheck`, `npm run test:unit` (163 tests),
+`npm run test:type` (26), `npm run test:integration` (25) and `npm run build`
+pass on Node 24 with Nuxt 4.5.2, with no `NUXT_B6005` warnings left.
+
 ## 1.1.0
 
 Audit release: bug fixes and hardening across the client transport, handler

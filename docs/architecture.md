@@ -160,18 +160,24 @@ envelope), so the client reads `FetchError.data` as `{ error: {...} }`.
 
 1. Merge module options; set private runtimeConfig `apiContract`
    (`validateResponse`, `mocks`) and public `public.apiContract.mocks`.
-2. Register app auto-imports (`defineApiContract`, `useApi`, ...).
-3. Register Nitro auto-import presets (`defineContractHandler`, ...).
-4. Push `contracts/` + `server/contracts/` into app auto-import dirs
-   (lightweight auto-discovery).
-5. If `openapi.enabled`: jiti-load the entry, generate the document, write
-   `.nuxt/api-contracts/openapi.mjs`, alias `#api-contracts-openapi`, add a
-   Nitro route serving it.
-6. If `devtools` (dev only) **or** `openapi.enabled`: jiti-load the contract
-   entry; if `devtools`, render the panel page (contract table + "Try
-   request" form) to `.nuxt/api-contracts/devtools.mjs`, alias
-   `#api-contracts-devtools`, add a Nitro route serving it as `text/html`;
-   try dynamic `@nuxt/devtools-kit` custom-tab registration. OpenAPI document
+2. Resolve the three public entry points (`client`, `composables`, `server`)
+   against `import.meta.url` and register app auto-imports
+   (`defineApiContract`, `useApi`, ...) **from those file paths**. Bare package
+   specifiers would only resolve for an installed package and Nuxt would then
+   silently skip the whole auto-import set (`NUXT_B6005`) — which is exactly what
+   happened before 1.2.0 when the module was loaded from `src/`.
+3. Register the Nitro auto-import preset (`defineContractHandler`, ...) from the
+   resolved `server` entry, in the `nitro:config` hook.
+4. `addImportsDir()` for each existing `contractsDirs` entry
+   (`contracts/`, `server/contracts/`) — lightweight auto-discovery, app-side.
+5. If `openapi.enabled`: jiti-load the entry and `addServerTemplate()` a virtual
+   `#api-contracts-openapi` module whose `getContents` regenerates the document
+   from the loaded contracts on every (re)build; add a Nitro route serving it.
+6. If `devtools` (dev only): jiti-load the contract entry, `addServerTemplate()`
+   a virtual `#api-contracts-devtools` module holding the rendered panel page
+   (contract table + "Try request" form), add a Nitro route serving it as
+   `text/html`, then try dynamic `@nuxt/devtools-kit` custom-tab registration.
+   The contract entry is loaded when either feature is active; OpenAPI document
    generation happens only when `openapi.enabled`.
 
 ## Dependency graph (runtime, client bundle)
@@ -194,7 +200,10 @@ openapi/cli → shared, zod, jiti                (build-time only)
 - **Integration** (`test/integration`): Nuxt Test Utils e2e against the
   playground — validation, typed errors, coercion, POST/PATCH/DELETE, real
   multipart uploads, OpenAPI route/content types, SSR page rendering; plus the
-  standalone mock server and the generated client.
+  standalone mock server and the generated client. The playground loads the
+  module from `src/` by default and from `dist/` when
+  `API_CONTRACT_MODULE=dist`, so both the source and the published layouts are
+  covered (auto-import entry resolution, Nitro runtime routes).
 - Regression rule: every fixed bug gets a test in the matching layer.
 
 ## Stability

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CreateUserContract, ListUsersContract, UploadAvatarContract } from '../contracts/users'
+import { CreateUserContract, ListUsersContract, UploadAvatarContract } from '~~/contracts/users'
 
 const { data, error } = await useApi(ListUsersContract, {
   query: { page: 1, limit: 10 },

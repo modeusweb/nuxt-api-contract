@@ -1,6 +1,13 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { isAbsolute, relative, resolve } from 'node:path'
-import { addImports, addServerHandler, createResolver, defineNuxtModule } from '@nuxt/kit'
+import { existsSync } from 'node:fs'
+import { isAbsolute, resolve } from 'node:path'
+import {
+  addImports,
+  addImportsDir,
+  addServerHandler,
+  addServerTemplate,
+  createResolver,
+  defineNuxtModule,
+} from '@nuxt/kit'
 import type { Nuxt } from '@nuxt/schema'
 import { defu } from 'defu'
 import { createJiti } from 'jiti'
@@ -81,6 +88,30 @@ export default defineNuxtModule<ApiContractModuleOptions>({
     const resolver = createResolver(import.meta.url)
     const rootDir = nuxt.options.rootDir
 
+    /**
+     * Resolves a public entry point to a concrete file.
+     *
+     * Auto-import sources must be resolvable by the module that *reads* them
+     * (Nuxt/unimport), not only by the bundler. Bare package specifiers such as
+     * `nuxt-api-contract/client` only resolve when the package is installed in
+     * `node_modules` — they fail when the module is consumed from source
+     * (`modules: ['../src/module']`, module development, the playground) or
+     * when `dist` is not built yet, and Nuxt then silently skips every
+     * auto-import (`NUXT_B6005`). Resolving relative to `import.meta.url` works
+     * in both layouts: `dist/module.mjs` -> `dist/client.mjs` and
+     * `src/module.ts` -> `src/client.ts`.
+     */
+    const resolveEntry = (entry: './client' | './composables' | './server'): string => {
+      const base = resolver.resolve(entry)
+      for (const extension of ['.ts', '.mjs', '.js']) {
+        if (existsSync(`${base}${extension}`)) return `${base}${extension}`
+      }
+      return base
+    }
+    const clientEntry = resolveEntry('./client')
+    const composablesEntry = resolveEntry('./composables')
+    const serverEntry = resolveEntry('./server')
+
     /* --- runtime config (secrets never go to `public`) --- */
     const mocksEnabled = options.mocks === true || options.mocks === 'auto'
     nuxt.options.runtimeConfig.apiContract = defu(nuxt.options.runtimeConfig.apiContract ?? {}, {
@@ -94,19 +125,19 @@ export default defineNuxtModule<ApiContractModuleOptions>({
 
     /* --- app auto-imports --- */
     addImports([
-      { from: 'nuxt-api-contract/client', name: 'defineApiContract' },
-      { from: 'nuxt-api-contract/client', name: 'createApiError' },
-      { from: 'nuxt-api-contract/client', name: 'isApiError' },
-      { from: 'nuxt-api-contract/client', name: 'mockContract' },
-      { from: 'nuxt-api-contract/client', name: 'versionedPath' },
-      { from: 'nuxt-api-contract/client', name: 'getContractVersion' },
-      { from: 'nuxt-api-contract/client', name: 'negotiateContractVersion' },
-      { from: 'nuxt-api-contract/client', name: 'listContractVersions' },
-      { from: 'nuxt-api-contract/composables', name: 'useApi' },
-      { from: 'nuxt-api-contract/composables', name: 'useApiClient' },
-      { from: 'nuxt-api-contract/server', name: 'defineContractHandler' },
-      { from: 'nuxt-api-contract/server', name: 'defineVersionedHandlers' },
-      { from: 'nuxt-api-contract/server', name: 'resolveRequestedApiVersion' },
+      { from: clientEntry, name: 'defineApiContract' },
+      { from: clientEntry, name: 'createApiError' },
+      { from: clientEntry, name: 'isApiError' },
+      { from: clientEntry, name: 'mockContract' },
+      { from: clientEntry, name: 'versionedPath' },
+      { from: clientEntry, name: 'getContractVersion' },
+      { from: clientEntry, name: 'negotiateContractVersion' },
+      { from: clientEntry, name: 'listContractVersions' },
+      { from: composablesEntry, name: 'useApi' },
+      { from: composablesEntry, name: 'useApiClient' },
+      { from: serverEntry, name: 'defineContractHandler' },
+      { from: serverEntry, name: 'defineVersionedHandlers' },
+      { from: serverEntry, name: 'resolveRequestedApiVersion' },
     ])
 
     // Nitro-side auto-imports (server routes can rely on these names too).
@@ -118,7 +149,7 @@ export default defineNuxtModule<ApiContractModuleOptions>({
       nitroConfig.imports = defu(nitroConfig.imports ?? {}, {
         presets: [
           {
-            from: 'nuxt-api-contract/server',
+            from: serverEntry,
             imports: ['defineContractHandler', 'createApiError', 'defineApiContract', 'defineVersionedHandlers', 'resolveRequestedApiVersion', 'versionedPath'],
           },
         ],
@@ -128,9 +159,7 @@ export default defineNuxtModule<ApiContractModuleOptions>({
     /* --- contract auto-imports from user directories --- */
     for (const dir of options.contractsDirs ?? []) {
       const absolute = resolve(rootDir, dir)
-      if (existsSync(absolute)) {
-        nuxt.options.imports.dirs = [...(nuxt.options.imports.dirs ?? []), relative(nuxt.options.rootDir, absolute).replaceAll('\\', '/')]
-      }
+      if (existsSync(absolute)) addImportsDir(absolute)
     }
 
     /* --- OpenAPI generation + serving --- */
@@ -162,19 +191,24 @@ export default defineNuxtModule<ApiContractModuleOptions>({
     }
 
     if (openapiEnabled && contracts.length > 0) {
-      const { document, warnings } = generateOpenApiDocument(contracts, {
-        title: openapi.title,
-        version: openapi.version,
-        description: openapi.description,
+      // `addServerTemplate` is the documented way to expose build-time data to
+      // the Nitro build: Nitro resolves `#api-contracts-openapi` itself, so the
+      // handler needs no alias written into `buildDir` (which also kept the
+      // document stale across dev rebuilds).
+      addServerTemplate({
+        filename: '#api-contracts-openapi',
+        getContents: () => {
+          const { document, warnings } = generateOpenApiDocument(contracts, {
+            title: openapi.title,
+            version: openapi.version,
+            description: openapi.description,
+          })
+          for (const warning of warnings) {
+            console.warn(`[nuxt-api-contract] OpenAPI warning (${warning.contract}): ${warning.message}`)
+          }
+          return `export const document = ${JSON.stringify(document)}\n`
+        },
       })
-      for (const warning of warnings) {
-        console.warn(`[nuxt-api-contract] OpenAPI warning (${warning.contract}): ${warning.message}`)
-      }
-      const buildDir = resolve(nuxt.options.buildDir, 'api-contracts')
-      mkdirSync(buildDir, { recursive: true })
-      const outputPath = resolve(buildDir, 'openapi.mjs')
-      writeFileSync(outputPath, `export const document = ${JSON.stringify(document)}\n`, 'utf8')
-      nuxt.options.alias['#api-contracts-openapi'] = outputPath
       addServerHandler({
         route: openapi.path!,
         handler: resolver.resolve('./runtime/server/openapiRoute'),
@@ -183,11 +217,10 @@ export default defineNuxtModule<ApiContractModuleOptions>({
 
     /* --- DevTools panel (optional, no hard runtime dependency) --- */
     if (devtoolsActive) {
-      const buildDir = resolve(nuxt.options.buildDir, 'api-contracts')
-      mkdirSync(buildDir, { recursive: true })
-      const htmlPath = resolve(buildDir, 'devtools.mjs')
-      writeFileSync(htmlPath, `export const html = ${JSON.stringify(buildDevtoolsHtml(contracts))}\n`, 'utf8')
-      nuxt.options.alias['#api-contracts-devtools'] = htmlPath
+      addServerTemplate({
+        filename: '#api-contracts-devtools',
+        getContents: () => `export const html = ${JSON.stringify(buildDevtoolsHtml(contracts))}\n`,
+      })
       const devtoolsRoute = '/_api-contracts'
       addServerHandler({
         route: devtoolsRoute,

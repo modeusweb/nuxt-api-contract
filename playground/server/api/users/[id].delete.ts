@@ -1,5 +1,9 @@
+// The contract is imported explicitly here (contract auto-discovery through
+// `apiContract.contractsDirs` is app-side), while `defineContractHandler` and
+// `createApiError` come from the module's Nitro auto-import preset — this route
+// is the canary that the preset actually injects (a broken `from` silently
+// disables every auto-import instead of failing the build).
 import { DeleteUserContract } from '../../../contracts/users'
-import { createApiError, defineContractHandler } from 'nuxt-api-contract/server'
 
 export default defineContractHandler(
   DeleteUserContract,
