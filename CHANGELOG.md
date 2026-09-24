@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.8.0
+
+Developer feedback and mock tooling release. This release adds safe response
+redaction to DevTools, selectable mock contracts, and keeps coverage governance
+available for local/project-owned CI.
+
+### Added
+
+- **DevTools redaction** through `metadata: { redact: ['password', 'token'] }`.
+- **Selective mock server** through `only: ['ContractName']` and CLI
+  `--only NameA,NameB`.
+- **Coverage threshold enforcement** through the previously introduced
+  `coverage` CLI command and `assertContractCoverage` helper.
+
+### Changed
+
+- The package version is now `1.8.0`; existing runtime APIs remain compatible
+  with `1.7.x`.
+- Mock server route listing reflects the active contract filter.
+
+### Verified
+
+`npm run lint`, `npm run typecheck`, `npm run test:unit` (173 tests),
+integration/type tests, `npm run build` and `npm run test:governance` pass on
+Node 24 with Nuxt 4.5.2.
+
 ## 1.7.0
 
 Developer feedback and contract governance release. This release improves the

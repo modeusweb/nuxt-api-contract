@@ -110,6 +110,17 @@ describe('standalone mock server', () => {
     expect(payload.error?.code).toBe('VALIDATION_ERROR')
   })
 
+  it('supports selecting named contracts with only', async () => {
+    const selected = await startMockServer({ contracts: [User, List, Create, Tags], port: 0, seed: 42, only: ['MockUser'] })
+    try {
+      expect((await fetch(`${selected.url}/__mock/contracts`)).status).toBe(200)
+      expect((await fetch(`${selected.url}/api/users`)).status).toBe(404)
+      expect((await fetch(`${selected.url}/api/users/u-1`)).status).toBe(200)
+    } finally {
+      await selected.close()
+    }
+  })
+
   it('lists available mock endpoints', async () => {
     const response = await fetch(`${handle.url}/__mock/contracts`)
     const body = (await response.json()) as { contracts: Array<{ path: string }> }

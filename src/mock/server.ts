@@ -27,6 +27,8 @@ export interface MockServerOptions {
   delay?: number
   /** Return generated responses even for invalid requests (default: false). */
   lenient?: boolean
+  /** Only serve contracts whose names are included in this list. */
+  only?: readonly string[]
 }
 
 export interface MockServerHandle {
@@ -82,9 +84,10 @@ function sleep(ms: number): Promise<void> {
 }
 
 /** Builds an in-memory matcher index over the contracts. */
-export function buildMockMatchers(contracts: AnyApiContract[]): Matcher[] {
+export function buildMockMatchers(contracts: AnyApiContract[], only?: readonly string[]): Matcher[] {
   return contracts
     .filter((contract) => {
+      if (only && (!contract.name || !only.includes(contract.name))) return false
       if (isExternalContract(contract)) {
         console.warn(`[nuxt-api-contract] Mock server: external contract ${contract.name ?? contract.path} is skipped (external APIs are not mocked).`)
         return false
@@ -118,7 +121,7 @@ function errorPayload(error: ApiError): ApiErrorPayload {
  * Prefer `startMockServer` for CLI / test usage.
  */
 export function createMockServer(options: MockServerOptions): Server {
-  const matchers = buildMockMatchers(options.contracts)
+  const matchers = buildMockMatchers(options.contracts, options.only)
 
   return createServer(async (req, res) => {
     const started = Date.now()
@@ -139,7 +142,7 @@ export function createMockServer(options: MockServerOptions): Server {
       // Meta endpoint: list available mock routes.
       if (url.pathname === '/__mock/contracts' || url.pathname === '/__mock/contracts/') {
         send(res, 200, {
-          contracts: options.contracts.map(contract => ({
+          contracts: matchers.map(({ contract }) => ({
             method: contract.method,
             path: contract.path,
             name: contract.name ?? null,

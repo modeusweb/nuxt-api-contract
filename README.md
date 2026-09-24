@@ -619,7 +619,11 @@ The command exits non-zero when the report is below the requested percentage.
 
 ### DevTools
 
-When `apiContract.devtools` is enabled in development, a panel lists all
+The standalone mock server accepts `only: ['ContractName']` to restrict the
+served routes. DevTools supports `metadata: { redact: ['password', 'token'] }`
+for the fields displayed in its request response panel. The CLI equivalent is
+`nuxt-api-contract mock <entry> --only NameA,NameB`.
+
 contracts (method, path, params, tags, error codes) and includes a
 "Try request" form. The panel shows HTTP status, request duration and whether
 the response body is valid JSON. DevTools is optional — the module works

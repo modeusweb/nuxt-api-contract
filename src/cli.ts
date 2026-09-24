@@ -6,7 +6,7 @@
  *   nuxt-api-contract openapi <entry> [--output openapi.json] [--title ...] [--version ...]
  *   nuxt-api-contract coverage <report.json> [--min 80]
  *   nuxt-api-contract client <entry> [--output contract-client.ts] [--client-name createClient]
- *   nuxt-api-contract mock <entry> [--port 4000] [--seed 42] [--lenient]
+ *   nuxt-api-contract mock <entry> [--port 4000] [--seed 42] [--lenient] [--only NameA,NameB]
  *   nuxt-api-contract init [directory] [--force]
  *   nuxt-api-contract check <entry> [--strict]
  *
@@ -212,6 +212,7 @@ async function main(): Promise<void> {
     const contracts = await loadContractsFromEntry(resolve(entry))
     const { startMockServer } = await import('./mock/server')
     const seed = flags.seed !== undefined && flags.seed !== true ? Number(flags.seed) : undefined
+    const only = typeof flags.only === 'string' ? flags.only.split(',').map(value => value.trim()).filter(Boolean) : undefined
     const handle = await startMockServer({
       contracts,
       port: flags.port !== undefined && flags.port !== true ? Number(flags.port) : 4000,
@@ -219,6 +220,7 @@ async function main(): Promise<void> {
       seed,
       delay: flags.delay !== undefined && flags.delay !== true ? Number(flags.delay) : undefined,
       lenient: flags.lenient === true,
+      only,
     })
     console.log(`[nuxt-api-contract] Mock server listening on ${handle.url} (seed: ${seed ?? 'randomized per contract'}, lenient: ${flags.lenient === true})`)
     for (const contract of contracts) {

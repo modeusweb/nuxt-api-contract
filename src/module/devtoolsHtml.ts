@@ -16,6 +16,7 @@ interface ContractRow {
   params: string[]
   tags: readonly string[]
   errorCodes: string[]
+  redactedPaths: string[]
 }
 
 function contractRows(contracts: AnyApiContract[]): ContractRow[] {
@@ -29,6 +30,7 @@ function contractRows(contracts: AnyApiContract[]): ContractRow[] {
         params,
         tags: contract.tags ?? [],
         errorCodes: contract.errors ? Object.keys(contract.errors) : [],
+        redactedPaths: Array.isArray(contract.metadata?.redact) ? (contract.metadata.redact as unknown[]).filter((path): path is string => typeof path === 'string') : [],
       }
     })
     .sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method))
@@ -140,7 +142,9 @@ function PANEL_FOOT(data: string): string {
         statusEl.textContent = response.status + ' ' + response.statusText + ' · ' + duration + 'ms';
         statusEl.className = response.ok ? 'status-ok' : 'status-error';
         try {
-          out.textContent = JSON.stringify(JSON.parse(text), null, 2);
+          out.textContent = JSON.stringify(JSON.parse(text), function (key, value) {
+            return row.redactedPaths.includes(key) ? '[REDACTED]' : value;
+          }, 2);
         } catch (_parseError) {
           statusEl.className = 'status-invalid';
           statusEl.textContent += ' · invalid JSON';

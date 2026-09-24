@@ -53,6 +53,19 @@ describe('buildDevtoolsHtml', () => {
     expect(html).toContain('status-ok')
   })
 
+  it('redacts metadata paths in DevTools output', () => {
+    const Secure = defineApiContract({
+      name: 'Secure',
+      method: 'GET',
+      path: '/api/secure',
+      metadata: { redact: ['password', 'token'] },
+      response: z.object({ email: z.string() }),
+    })
+    const html = buildDevtoolsHtml([Secure])
+    expect(html).toContain('redactedPaths')
+    expect(html).toContain('[REDACTED]')
+  })
+
   it('renders an empty state page without contracts', () => {
     const html = buildDevtoolsHtml([])
     expect(html).toContain('<!DOCTYPE html>')
