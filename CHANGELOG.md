@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.5.0
+
+Generated-client completeness and first-run UX release. This release closes
+the highest-value gaps from the 1.4.0 roadmap: multipart standalone clients,
+strict OpenAPI generation, security metadata and the Nuxt starter command.
+
+### Added
+
+- **Multipart support in standalone generated clients** through `FormData`,
+  including files, arrays, dates and nested values.
+- **Strict OpenAPI generation** via `openapi: { strict: true }` and the CLI
+  `--strict` flag; unsupported schema warnings now become build errors.
+- **OpenAPI security metadata** for `auth: true` contracts using a bearer
+  security scheme. Authentication itself remains the application's concern.
+- **Nuxt starter command** `nuxt-api-contract init [directory] [--force]`.
+
+### Changed
+
+- The package version is now `1.5.0`; existing runtime APIs remain compatible
+  with `1.4.x`.
+- Generated clients now pass `FormData` through without JSON serialization.
+
+### Verified
+
+`npm run lint`, `npm run typecheck`, `npm run test:unit` (169 tests),
+`npm run test:integration`, `npm run test:type`, `npm run build` and
+`npm run test:governance` pass on Node 24 with Nuxt 4.5.2.
+
 ## 1.4.0
 
 Developer-experience and governance release. This release adds local contract

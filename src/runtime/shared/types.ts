@@ -39,6 +39,8 @@ export type PathParams<TPath extends string> = {
 export interface AuthConfig {
   required?: boolean
   roles?: readonly string[]
+  /** OpenAPI security scheme hint. */
+  scheme?: 'bearer' | 'basic' | 'apiKey'
   [key: string]: unknown
 }
 

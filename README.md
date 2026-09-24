@@ -778,11 +778,15 @@ Behavior:
 - With Zod 4, coerced (`z.coerce.*`) inputs are repaired at the top level of an
   object schema — see [Zod version support](#zod-version-support).
 - OpenAPI conversion is best-effort for `transform` / `refine` / `preprocess`
-  (a warning is collected, the closest schema is emitted, generation never
-  fails). OpenAPI is 3.0.3; 3.1 / JSON Schema dialects are on the roadmap.
+  (a warning is collected, the closest schema is emitted). OpenAPI 3.1 / JSON
+  Schema dialects remain a future roadmap item; use `strict: true` when warnings
+  must fail the build.
 - Auto-discovery is directory-based (`contracts/`, `server/contracts/`) rather
   than a build-time scanner.
-- The generated standalone client (`clientgen`) emits JSON request bodies only.
+- The standalone generated client supports multipart request bodies via
+  `FormData`; it no longer JSON-stringifies multipart payloads.
+- OpenAPI generation supports `strict: true` and authenticated contracts emit
+  bearer security metadata without implementing authentication.
 
 ## Roadmap
 

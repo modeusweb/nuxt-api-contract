@@ -38,6 +38,8 @@ export interface ApiContractModuleOptions {
     version?: string
     description?: string
     output?: string
+    /** Treat unsupported schema warnings as build errors. */
+    strict?: boolean
   }
   /**
    * Mock mode:
@@ -202,6 +204,7 @@ export default defineNuxtModule<ApiContractModuleOptions>({
             title: openapi.title,
             version: openapi.version,
             description: openapi.description,
+            strict: openapi.strict,
           })
           for (const warning of warnings) {
             console.warn(`[nuxt-api-contract] OpenAPI warning (${warning.contract}): ${warning.message}`)

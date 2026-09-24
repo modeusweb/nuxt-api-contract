@@ -42,6 +42,8 @@ interface GeneratedOperation {
   requiresHeaders: boolean
   /** The params schema is a ZodObject (merged interface emission). */
   paramsIsObject: boolean
+  /** Resolved request body format. */
+  bodyFormat: 'json' | 'multipart'
 }
 
 function pascal(input: string): string {
@@ -165,6 +167,9 @@ function emitOperation(operation: GeneratedOperation): string {
   const paramsRef = hasParams ? 'input?.params' : 'undefined'
   const queryRef = contract.query ? 'input?.query' : 'undefined'
   const bodyRef = contract.body ? 'input?.body' : 'undefined'
+  const requestBody = contract.bodyFormat === 'multipart'
+    ? `serializeMultipartBody(${bodyRef})`
+    : bodyRef
   const headersRef = contract.headers ? 'input?.headers' : 'undefined'
   const responseType = contract.response ? `${operation.typeName}Response` : 'unknown'
 
@@ -189,7 +194,7 @@ function emitOperation(operation: GeneratedOperation): string {
     `    const result = await request(`,
     `      '${operation.httpMethod}',`,
     `      buildPath('${contract.path}', ${paramsRef}) + buildQueryString(${queryRef}),`,
-    `      ${bodyRef},`,
+    `      ${requestBody},`,
     `      ${headersRef},`,
     `      options?.signal,`,
     `      options?.extraHeaders,`,
@@ -227,6 +232,24 @@ export interface ContractClientConfig {
   fetch?: typeof globalThis.fetch
   /** Static or dynamic headers merged into every request (e.g. Authorization). */
   headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>)
+}
+
+function serializeMultipartBody(body: Record<string, unknown> | undefined): FormData {
+  const form = new FormData()
+  if (!body) return form
+  for (const [key, value] of Object.entries(body)) {
+    if (value === undefined || value === null) continue
+    if (Array.isArray(value)) {
+      for (const item of value) form.append(key, item instanceof Blob ? item : String(item))
+    } else if (value instanceof Blob) {
+      form.append(key, value)
+    } else if (typeof value === 'object' && !(value instanceof Date)) {
+      form.append(key, JSON.stringify(value))
+    } else {
+      form.append(key, value instanceof Date ? value.toISOString() : String(value))
+    }
+  }
+  return form
 }
 
 function buildPath(path: string, params: Record<string, unknown> | undefined): string {
@@ -281,7 +304,7 @@ const FACTORY_BODY = `  const doFetch = config.fetch ?? globalThis.fetch
     const response = await doFetch(\`\${baseUrl}\${url}\`, {
       method,
       headers: allHeaders,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : (body instanceof FormData ? body : JSON.stringify(body)),
       signal,
     })
     if (!response.ok) {
@@ -327,6 +350,7 @@ export function generateClientSource(
       requiresQuery: shape.requiresQuery,
       requiresHeaders: shape.requiresHeaders,
       paramsIsObject: shape.paramsIsObject,
+      bodyFormat: contract.bodyFormat,
     }
   })
 

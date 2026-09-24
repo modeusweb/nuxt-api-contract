@@ -60,6 +60,18 @@ describe('zodToJsonSchema', () => {
 })
 
 describe('generateOpenApiDocument', () => {
+  it('adds security metadata for authenticated contracts', () => {
+    const Secure = defineApiContract({ name: 'Secure', method: 'GET', path: '/api/secure', auth: true, response: z.object({ ok: z.boolean() }) })
+    const { document } = generateOpenApiDocument([Secure])
+    const operation = (document.paths as Record<string, Record<string, Record<string, unknown>>>)['/api/secure']!.get!
+    expect(operation.security).toEqual([{ bearerAuth: [] }])
+    expect((document.components as { securitySchemes?: unknown }).securitySchemes).toBeTruthy()
+  })
+
+  it('fails strict generation when warnings are present', () => {
+    const Refined = defineApiContract({ name: 'Refined', method: 'GET', path: '/api/refined', response: z.object({ value: z.string().refine(value => value.length > 0) }) })
+    expect(() => generateOpenApiDocument([Refined], { strict: true })).toThrow(/Strict OpenAPI generation failed/)
+  })
   it('builds paths, parameters and responses', () => {
     const { document, warnings } = generateOpenApiDocument([GetUser, CreateUser], { title: 'Test API' })
     expect(warnings.filter(w => w.contract !== '(internal)')).toEqual([])

@@ -97,6 +97,7 @@ export default defineNuxtConfig({
       title: 'API Contracts',
       version: '0.1.0',
       description: undefined,
+      strict: false,
     },
   },
 })

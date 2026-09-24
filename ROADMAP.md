@@ -66,11 +66,13 @@ the architecture document or importing internal entry points.
 
 ## 1.6.0 — OpenAPI and generated client completeness
 
-- [ ] Multipart support in the standalone generated client.
+**Status: in progress; multipart, strict mode and security metadata released in `1.5.0`**
+
+- [x] Multipart support in the standalone generated client.
 - [ ] Add OpenAPI 3.1/JSON Schema mode behind an explicit option.
-- [ ] Add strict OpenAPI mode that turns unsupported schema warnings into errors.
-- [ ] Add generated-client tests for errors, arrays, recursion and multipart.
-- [ ] Add `auth` security metadata without implementing an auth framework.
+- [x] Add strict OpenAPI mode that turns unsupported schema warnings into errors.
+- [x] Add generated-client tests for errors, arrays, recursion and multipart.
+- [x] Add `auth` security metadata without implementing an auth framework.
 
 **Exit criteria:** generated clients and OpenAPI describe the same transport
 behaviour as the Nuxt client for JSON, multipart and declared error payloads.

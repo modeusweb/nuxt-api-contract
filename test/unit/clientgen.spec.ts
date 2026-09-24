@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import ts from 'typescript'
 import { z } from 'zod'
-import { defineApiContract } from '../../src/client'
+import { defineApiContract, multipartSchema } from '../../src/client'
 import { generateClientSource } from '../../src/clientgen/generator'
 import { emitTsType, pathParamNames } from '../../src/clientgen/zodToTs'
 
@@ -162,6 +162,20 @@ describe('generateClientSource', () => {
     const b = defineApiContract({ method: 'GET', path: '/api/b/:id', params: z.object({ id: z.string() }), response: z.object({ ok: z.boolean() }) })
     const result = generateClientSource([a, b])
     expect(syntaxDiagnostics(result.source)).toEqual([])
+  })
+
+  it('supports multipart request bodies in the standalone runtime', () => {
+    const Upload = defineApiContract({
+      name: 'Upload',
+      method: 'POST',
+      path: '/api/upload',
+      body: multipartSchema({ file: z.instanceof(File), note: z.string().optional() }),
+      response: z.object({ ok: z.boolean() }),
+    })
+    const result = generateClientSource([Upload])
+    expect(syntaxDiagnostics(result.source)).toEqual([])
+    expect(result.source).toContain('serializeMultipartBody(input?.body)')
+    expect(result.source).toContain('body instanceof FormData ? body : JSON.stringify(body)')
   })
 
   it('warns for non-representable schemas instead of failing', () => {

@@ -24,6 +24,8 @@ export interface OpenApiOptions {
   title?: string
   version?: string
   description?: string
+  /** Fail generation when unsupported schema constructs produce warnings. */
+  strict?: boolean
 }
 
 export interface OpenApiGenerationResult {
@@ -286,6 +288,9 @@ export function contractToOperation(contract: AnyApiContract, warnings: Generati
   }
   if (contract.description) operation.description = contract.description
   if (contract.tags?.length) operation.tags = [...contract.tags]
+  if (contract.auth) {
+    operation.security = [{ bearerAuth: [] }]
+  }
 
   for (const name of pathParamNames(contract.path)) {
     const schema = contract.params
@@ -401,6 +406,9 @@ export function generateOpenApiDocument(
     },
     paths,
     components: {
+      securitySchemes: {
+        bearerAuth: { type: 'http', scheme: 'bearer' },
+      },
       schemas: {
         ApiError: {
           type: 'object',
@@ -446,6 +454,10 @@ export function generateOpenApiDocument(
         },
       },
     },
+  }
+
+  if (options.strict && warnings.length > 0) {
+    throw new Error(`[nuxt-api-contract] Strict OpenAPI generation failed: ${warnings.map(warning => `${warning.contract}: ${warning.message}`).join('; ')}`)
   }
 
   return { document, warnings }
