@@ -27,6 +27,10 @@ export interface MockServerOptions {
   delay?: number
   /** Return generated responses even for invalid requests (default: false). */
   lenient?: boolean
+  /** Optional named scenario/fixture for response selection. */
+  scenario?: string
+  /** Named response fixtures keyed by scenario. */
+  fixtures?: Readonly<Record<string, unknown>>
   /** Only serve contracts whose names are included in this list. */
   only?: readonly string[]
 }
@@ -214,7 +218,7 @@ export function createMockServer(options: MockServerOptions): Server {
 
       let response: unknown
       try {
-        response = generateMockResponse(contract, { seed: options.seed })
+        response = options.fixtures?.[options.scenario ?? ''] ?? generateMockResponse(contract, { seed: options.seed })
         if (contract.response) {
           validateContractResponse(contract, contract.response as ZodType, response)
         }

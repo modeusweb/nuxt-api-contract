@@ -620,9 +620,11 @@ The command exits non-zero when the report is below the requested percentage.
 ### DevTools
 
 The standalone mock server accepts `only: ['ContractName']` to restrict the
-served routes. DevTools supports `metadata: { redact: ['password', 'token'] }`
-for the fields displayed in its request response panel. The CLI equivalent is
-`nuxt-api-contract mock <entry> --only NameA,NameB`.
+served routes and `scenario`/`fixtures` for named response states. DevTools
+supports `metadata: { redact: ['password', 'token'] }` for the fields displayed
+in its request response panel. CLI equivalents are
+`nuxt-api-contract mock <entry> --only NameA,NameB` and
+`nuxt-api-contract mock <entry> --scenario empty --fixtures fixtures.json`.
 
 contracts (method, path, params, tags, error codes) and includes a
 "Try request" form. The panel shows HTTP status, request duration and whether

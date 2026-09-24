@@ -3,16 +3,18 @@
 ## 1.8.0
 
 Developer feedback and mock tooling release. This release adds safe response
-redaction to DevTools, selectable mock contracts, and keeps coverage governance
-available for local/project-owned CI.
+redaction to DevTools, selectable mock contracts, named response fixtures and
+coverage governance for local or project-owned CI.
 
 ### Added
 
 - **DevTools redaction** through `metadata: { redact: ['password', 'token'] }`.
 - **Selective mock server** through `only: ['ContractName']` and CLI
   `--only NameA,NameB`.
-- **Coverage threshold enforcement** through the previously introduced
-  `coverage` CLI command and `assertContractCoverage` helper.
+- **Named mock fixtures** through `scenario`/`fixtures` options and CLI
+  `--scenario empty --fixtures fixtures.json`.
+- **Coverage threshold enforcement** through the `coverage` CLI command and
+  `assertContractCoverage` helper.
 
 ### Changed
 

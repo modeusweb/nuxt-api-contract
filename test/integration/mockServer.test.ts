@@ -121,6 +121,21 @@ describe('standalone mock server', () => {
     }
   })
 
+  it('uses a named fixture scenario when provided', async () => {
+    const selected = await startMockServer({
+      contracts: [User],
+      port: 0,
+      scenario: 'empty',
+      fixtures: { empty: { id: 'empty', name: 'Empty', email: 'empty@example.com' } },
+    })
+    try {
+      const body = await (await fetch(`${selected.url}/api/users/u-1`)).json() as { id: string }
+      expect(body.id).toBe('empty')
+    } finally {
+      await selected.close()
+    }
+  })
+
   it('lists available mock endpoints', async () => {
     const response = await fetch(`${handle.url}/__mock/contracts`)
     const body = (await response.json()) as { contracts: Array<{ path: string }> }
