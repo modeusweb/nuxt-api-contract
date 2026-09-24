@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.3.0
+
+Consumer confidence and developer-experience release. This release adds a
+contract health check, a real tarball consumer smoke test, CI quality gates and
+clearer release/roadmap criteria.
+
+### Added
+
+- **`nuxt-api-contract check <entry>`** with actionable diagnostics for
+  duplicate contract names/versions, duplicate routes and path-parameter/schema
+  mismatches. Use `--strict` in CI to fail on warnings as well as errors.
+- **`npm run test:consumer`**, which builds and packs the package, installs the
+  tarball into a temporary clean Nuxt consumer, runs the installed CLI,
+  `nuxt prepare` and a production build.
+- **CI workflow** for Node 20/22 with lint, typecheck, unit/integration/type
+  tests, build, strict contract checking and consumer smoke coverage.
+
+### Changed
+
+- Updated the roadmap to prioritise consumer confidence, CI governance and a
+  faster first-run experience before adding more runtime features.
+- The package version is now `1.3.0`; the public runtime API remains compatible
+  with `1.2.x`.
+
+### Verified
+
+`npm run lint`, `npm run typecheck`, `npm run test:unit` (166 tests),
+`npm run test:consumer` and `npm run build` pass on Node 24 with Nuxt 4.5.2.
+
 ## 1.2.0
 
 Dependency and Nuxt 4 release: the toolchain moved to the latest majors (Nuxt

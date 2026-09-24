@@ -1,6 +1,6 @@
 {
   "name": "nuxt-api-contract",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Type-safe API contracts between Nitro server routes and the Nuxt client.",
   "type": "module",
   "license": "MIT",
@@ -83,6 +83,7 @@
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
     "test:type": "vitest run --typecheck.enabled test/type",
+    "test:consumer": "node scripts/consumer-smoke.mjs",
     "prepack": "npm run build",
     "prepublishOnly": "npm run lint && npm run typecheck && npm run test:unit && npm run test:type && npm run build"
   },

@@ -70,6 +70,18 @@ see [Zod version support](#zod-version-support)).
 
 ## Quick start
 
+### Check a contracts entry
+
+Validate names, routes and path parameters before generating documentation or
+starting the application:
+
+```bash
+npx nuxt-api-contract check contracts/index.ts
+```
+
+Use `--strict` in CI to fail on warnings as well as errors.
+
+
 ```ts
 // contracts/users.ts
 import { z } from 'zod'
@@ -762,7 +774,7 @@ fixes). Post-1.0 candidates are listed in the roadmap.
 npm run build        # build the package (unbuild)
 npm run dev:prepare  # unbuild --stub (stub the entries for the playground)
 npm run test         # unit + integration tests
-npm run test:type    # type tests (vitest typecheck)
+npm run test:consumer # build, pack, install and build a temporary Nuxt consumer
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
 ```

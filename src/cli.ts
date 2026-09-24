@@ -6,6 +6,7 @@
  *   nuxt-api-contract openapi <entry> [--output openapi.json] [--title ...] [--version ...]
  *   nuxt-api-contract client <entry> [--output contract-client.ts] [--client-name createClient]
  *   nuxt-api-contract mock <entry> [--port 4000] [--seed 42] [--lenient]
+ *   nuxt-api-contract check <entry> [--strict]
  *
  * `<entry>` is a TypeScript/JavaScript module that exports contracts either
  * as a default array or as named exports (every export with
@@ -15,6 +16,7 @@ import { createJiti } from 'jiti'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { generateOpenApiDocument, pickContracts } from './openapi/generator'
+import { checkContracts } from './contract-check'
 import type { AnyApiContract } from './runtime/shared/types'
 
 interface CliArgs {
@@ -70,6 +72,28 @@ async function loadContractsFromEntry(entry: string): Promise<AnyApiContract[]> 
 
 async function main(): Promise<void> {
   const { command, positional, flags } = parseArgs(process.argv.slice(2))
+
+  if (command === 'check') {
+    const entry = positional[0]
+    if (!entry || !existsSync(entry)) {
+      console.error('[nuxt-api-contract] Usage: nuxt-api-contract check <entry> [--strict]')
+      process.exitCode = 1
+      return
+    }
+    const contracts = await loadContractsFromEntry(resolve(entry))
+    const result = checkContracts(contracts)
+    for (const issue of result.issues) {
+      const level = issue.level === 'error' ? 'ERROR' : 'WARNING'
+      console.error(`[nuxt-api-contract] ${level} (${issue.contract}): ${issue.message}`)
+    }
+    const shouldFail = result.errors > 0 || (flags.strict === true && result.warnings > 0)
+    if (shouldFail) {
+      process.exitCode = 1
+      return
+    }
+    console.log(`[nuxt-api-contract] Check passed: ${result.errors} error(s), ${result.warnings} warning(s).`)
+    return
+  }
 
   if (command === 'openapi') {
     const entry = positional[0]
@@ -153,7 +177,7 @@ async function main(): Promise<void> {
     return
   }
 
-  console.error(`[nuxt-api-contract] Unknown command "${command ?? ''}". Available commands: openapi, client, mock`)
+  console.error(`[nuxt-api-contract] Unknown command "${command ?? ''}". Available commands: check, openapi, client, mock`)
   process.exitCode = 1
 }
 

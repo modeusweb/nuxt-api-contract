@@ -1,33 +1,105 @@
 # Roadmap
 
-Versions in this table are **npm package versions**, not milestone numbers.
-The initial release (0.1.0) shipped the first three planned milestones at once
-— core contracts, OpenAPI generation and the DevTools panel — so the plan was
-re-numbered against actual releases.
+This roadmap prioritizes a short path from installation to a reliable production
+API. The goal is not to add the largest possible feature list; it is to make the
+single-source-of-truth workflow fast to adopt, easy to verify and predictable
+when contracts change.
 
-| npm version | Scope | Status |
-| --- | --- | --- |
-| 0.1.0 | Core contracts (`defineApiContract`, `defineContractHandler`, `useApi`, `useApiClient`), runtime validation, typed errors, SSR transport, contract registry, mocks, `callContract`, OpenAPI generation (build-time + CLI), optional DevTools panel, tests, playground | ✅ released |
-| 0.2.0 | Standalone mock server (`nuxt-api-contract mock`), mock presets generated from contracts / OpenAPI | ✅ released |
-| 0.3.0 | Extended contract testing (`testContract` suites, coverage report over contracts) | ✅ released |
-| 0.4.0 | OpenAPI client generation for external consumers | ✅ released |
-| 0.5.0 | External API contracts (pluggable transports, e.g. GitHub API) | ✅ released |
-| 0.6.0 | Contract versioning helpers (`versionedPath`, `version` registry, negotiation, deprecation) | ✅ released |
-| 1.0.0 | Stable public API (frozen + documented in `docs/public-api.md`), Zod 4 support (dual Zod 3/4 introspection), multipart/file-upload bodies, strict SemVer | ✅ released |
-| 1.1.0 | Audit fixes: typed-error rewrapping, deprecation headers on all response paths, mock delay/range bugs, strict version parsing, real DevTools HTML panel, clientgen requiredness | ✅ released |
-| 1.2.0 | Nuxt 4 toolchain: Nuxt 4.5 / Vite 8 / Vitest 5 / ESLint 10, `addServerTemplate` for the OpenAPI + DevTools virtual modules, auto-import sources resolved from `import.meta.url`, Nuxt 4 playground layout | ✅ released |
+## Product principles
 
-Patch releases (1.x.y) carry fixes only; features land in minor releases (1.x.0)
-and any breaking change requires a major release — see
-[`docs/public-api.md`](docs/public-api.md) for the frozen surface.
+1. Correctness before feature count.
+2. A five-minute quickstart before optional tooling.
+3. Every generated artifact must be inspectable and reproducible.
+4. Build-time errors must explain the exact fix.
+5. Runtime behavior stays framework-compatible and opt-in.
 
-Post-1.0 candidates (not committed):
+## 1.3.0 — Consumer confidence and developer experience
 
-- OpenAPI 3.1 / `z.toJSONSchema()`-based generation behind the same abstraction
-  layer (JSON Schema dialects instead of hand-mapped keywords);
-- file uploads in the generated standalone client (multipart request bodies);
-- DevTools "diff contract vs. response" view;
-- contract versioning ergonomics (`defineApiContract` version registry UI).
+**Status: released as `1.3.0`**
 
-Non-goals (deliberately): ORM, database abstraction, auth framework, custom
-HTTP server/router, custom schema language, custom serializer.
+### Done in this iteration
+
+- [x] Add `nuxt-api-contract check <entry>` for duplicate names/versions,
+  duplicate routes and path-parameter consistency.
+- [x] Add `check --strict` for CI use.
+- [x] Add unit coverage for the checker.
+- [x] Document the checker in the public CLI section.
+- [x] Add a clean package-consumer smoke test.
+
+### Exit criteria
+
+- `npm pack` output contains every declared export and the CLI binary.
+- A clean consumer can install the tarball and run the module in a Nuxt app.
+- The quickstart completes without source-mode assumptions.
+- CI runs the checker against the playground and reports actionable failures.
+
+## 1.4.0 — CI and contract governance
+
+**Status: in progress**
+
+- [ ] CI matrix: Node 20/22, Nuxt 3/4, Zod 3/4.
+- [ ] Run `check --strict` in CI.
+- [ ] Add `openapi --check` and committed generated OpenAPI fixtures.
+- [ ] Add contract coverage thresholds to CI.
+- [ ] Fail CI when a generated client/OpenAPI artifact is stale.
+- [ ] Publish a compatibility matrix and migration policy.
+
+**Exit criteria:** a pull request cannot merge with broken type contracts,
+malformed OpenAPI output, or an untested supported runtime combination.
+
+## 1.5.0 — Better first-run experience
+
+- [ ] Add `nuxt-api-contract init <directory>`.
+- [ ] Generate a minimal contract, Nitro handler and Nuxt config.
+- [ ] Provide framework-neutral and Nuxt quickstart examples.
+- [ ] Add a focused “one contract” tutorial.
+- [ ] Improve configuration errors for missing entry files and dependencies.
+
+**Exit criteria:** a new user can create a working API contract without reading
+the architecture document or importing internal entry points.
+
+## 1.6.0 — OpenAPI and generated client completeness
+
+- [ ] Multipart support in the standalone generated client.
+- [ ] Add OpenAPI 3.1/JSON Schema mode behind an explicit option.
+- [ ] Add strict OpenAPI mode that turns unsupported schema warnings into errors.
+- [ ] Add generated-client tests for errors, arrays, recursion and multipart.
+- [ ] Add `auth` security metadata without implementing an auth framework.
+
+**Exit criteria:** generated clients and OpenAPI describe the same transport
+behaviour as the Nuxt client for JSON, multipart and declared error payloads.
+
+## 1.7.0 — Developer feedback
+
+- [ ] Show response validation and schema diff in DevTools.
+- [ ] Display request timing, status and validation result.
+- [ ] Add redaction hooks for sensitive request/response fields.
+- [ ] Improve mock-server fixtures and scenario filtering.
+- [ ] Add migration hints for deprecated contract versions.
+
+## Later
+
+- Observability hooks without imposing an application framework.
+- Optional OpenTelemetry integration behind a lightweight interface.
+- Version-aware contract comparison and migration tooling.
+- More transport adapters only when real integrations demonstrate a need.
+
+## Explicit non-goals
+
+- ORM or database abstraction.
+- Full authentication/authorization implementation.
+- A custom HTTP router.
+- A second schema language.
+- Automatic retry/rate-limit policy inside the core package.
+- Generated artifacts that cannot be reviewed or reproduced locally.
+
+## Release gates
+
+Every release must pass:
+
+- lint and TypeScript checks;
+- unit, integration and type tests;
+- production dependency audit;
+- package build and export/binary smoke test;
+- checker tests;
+- supported runtime matrix on CI.
