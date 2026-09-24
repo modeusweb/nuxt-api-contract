@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.10.1
+
+README release patch. The published package now includes the current release
+status and links to the updated roadmap and compatibility policy.
+
+### Changed
+
+- The package version is now `1.10.1`; runtime APIs remain compatible with
+  `1.10.x`.
+- Updated the top-level README status to `1.10.1`.
+
+### Verified
+
+The package was rebuilt and `npm pack` was checked to confirm that the updated
+README is included in the published tarball.
+
 ## 1.10.0
 
 Contract migration guidance release. This release makes deprecated contract
