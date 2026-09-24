@@ -32,6 +32,29 @@ export interface ContractCoverageReport {
   uncovered: Array<{ name?: string, method: HttpMethod, path: string }>
 }
 
+export interface CoverageThresholdResult {
+  passed: boolean
+  minimum: number
+  actual: number
+  message: string
+}
+
+/** Checks a coverage report against a required minimum percentage. */
+export function assertContractCoverage(report: ContractCoverageReport, minimum: number): CoverageThresholdResult {
+  if (!Number.isFinite(minimum) || minimum < 0 || minimum > 100) {
+    throw new RangeError(`Coverage minimum must be between 0 and 100, received ${minimum}.`)
+  }
+  const passed = report.percent >= minimum
+  return {
+    passed,
+    minimum,
+    actual: report.percent,
+    message: passed
+      ? `Contract coverage ${report.percent}% meets the ${minimum}% threshold.`
+      : `Contract coverage ${report.percent}% is below the ${minimum}% threshold (${report.coveredCount}/${report.total}).`,
+  }
+}
+
 interface CoverageState {
   active: boolean
   entries: Map<string, ContractCoverageEntry>

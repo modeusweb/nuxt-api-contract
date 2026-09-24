@@ -79,11 +79,14 @@ behaviour as the Nuxt client for JSON, multipart and declared error payloads.
 
 ## 1.7.0 — Developer feedback
 
+**Status: in progress; timing/status/JSON feedback and coverage threshold helper released in `1.7.0`**
+
 - [ ] Show response validation and schema diff in DevTools.
-- [ ] Display request timing, status and validation result.
+- [x] Display request timing, status and response classification.
 - [ ] Add redaction hooks for sensitive request/response fields.
 - [ ] Improve mock-server fixtures and scenario filtering.
 - [ ] Add migration hints for deprecated contract versions.
+- [x] Add a runnable coverage threshold helper and CLI command.
 
 ## Later
 

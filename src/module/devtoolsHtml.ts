@@ -68,6 +68,9 @@ const PANEL_HEAD = `<!DOCTYPE html>
     input { width: 180px; }
     pre { margin: 12px 0 0; padding: 12px; border-radius: 6px; background: #15151a; border: 1px solid #2a2a33; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
     #status { font-family: ui-monospace, monospace; }
+    .status-ok { color: #6ee7a2; }
+    .status-error { color: #ff8787; }
+    .status-invalid { color: #ffd43b; }
     .empty { color: #8b8b98; font-style: italic; }
   </style>
 </head>
@@ -127,18 +130,25 @@ function PANEL_FOOT(data: string): string {
       });
       out.classList.remove('empty');
       out.textContent = '…';
+      statusEl.className = '';
       statusEl.textContent = '';
+      const started = performance.now();
       try {
         const response = await fetch(path, { method: row.method });
         const text = await response.text();
-        statusEl.textContent = response.status + ' ' + response.statusText;
+        const duration = Math.round(performance.now() - started);
+        statusEl.textContent = response.status + ' ' + response.statusText + ' · ' + duration + 'ms';
+        statusEl.className = response.ok ? 'status-ok' : 'status-error';
         try {
           out.textContent = JSON.stringify(JSON.parse(text), null, 2);
         } catch (_parseError) {
+          statusEl.className = 'status-invalid';
+          statusEl.textContent += ' · invalid JSON';
           out.textContent = text;
         }
       } catch (error) {
-        statusEl.textContent = 'request failed';
+        statusEl.className = 'status-error';
+        statusEl.textContent = 'request failed · ' + Math.round(performance.now() - started) + 'ms';
         out.textContent = String(error);
       }
     }

@@ -606,12 +606,24 @@ Uncovered:
 Coverage is driven by the same `callContract` pipeline, so it works for both
 unit tests and integration tests.
 
-## DevTools
+### Contract coverage
+
+Export `getContractCoverage()` from your test setup and enforce a threshold in
+local or project-owned CI:
+
+```bash
+node dist/cli.mjs coverage .audit/coverage.json --min 80
+```
+
+The command exits non-zero when the report is below the requested percentage.
+
+### DevTools
 
 When `apiContract.devtools` is enabled in development, a panel lists all
 contracts (method, path, params, tags, error codes) and includes a
-"Try request" form. DevTools is optional — the module works normally without
-it. `@nuxt/devtools-kit` is imported dynamically and guarded.
+"Try request" form. The panel shows HTTP status, request duration and whether
+the response body is valid JSON. DevTools is optional — the module works
+normally without it. `@nuxt/devtools-kit` is imported dynamically and guarded.
 
 ## Configuration
 
@@ -790,7 +802,8 @@ Behavior:
 
 See [docs/compatibility.md](docs/compatibility.md) for supported runtimes and
 migration policy. Use `npm run test:governance` for local contract/OpenAPI
-checks and `npm run test:consumer` for a clean packed-package check.
+checks, `npm run test:coverage` for a coverage report threshold, and
+`npm run test:consumer` for a clean packed-package check.
 validation, typed client, SSR transport, registry, mocks, mock server, contract
 testing, OpenAPI generation, generated client, external contracts, versioning,
 **Zod 4 support**, **multipart bodies**, the 1.1.0 audit fixes and the

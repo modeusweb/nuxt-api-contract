@@ -4,6 +4,7 @@
  *
  * Commands:
  *   nuxt-api-contract openapi <entry> [--output openapi.json] [--title ...] [--version ...]
+ *   nuxt-api-contract coverage <report.json> [--min 80]
  *   nuxt-api-contract client <entry> [--output contract-client.ts] [--client-name createClient]
  *   nuxt-api-contract mock <entry> [--port 4000] [--seed 42] [--lenient]
  *   nuxt-api-contract init [directory] [--force]
@@ -18,6 +19,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { generateOpenApiDocument, pickContracts } from './openapi/generator'
 import { checkContracts } from './contract-check'
+import { assertContractCoverage, type ContractCoverageReport } from './testing/coverage'
 import type { AnyApiContract } from './runtime/shared/types'
 
 interface CliArgs {
@@ -163,6 +165,21 @@ async function main(): Promise<void> {
     return
   }
 
+  if (command === 'coverage') {
+    const reportPath = positional[0]
+    const minimum = typeof flags.min === 'string' ? Number(flags.min) : 0
+    if (!reportPath || !existsSync(reportPath)) {
+      console.error('[nuxt-api-contract] Usage: nuxt-api-contract coverage <report.json> [--min 80]')
+      process.exitCode = 1
+      return
+    }
+    const report = JSON.parse(readFileSync(resolve(reportPath), 'utf8')) as ContractCoverageReport
+    const result = assertContractCoverage(report, minimum)
+    console.log(`[nuxt-api-contract] ${result.message}`)
+    if (!result.passed) process.exitCode = 1
+    return
+  }
+
   if (command === 'client') {
     const entry = positional[0]
     if (!entry || !existsSync(entry)) {
@@ -218,7 +235,7 @@ async function main(): Promise<void> {
     return
   }
 
-  console.error(`[nuxt-api-contract] Unknown command "${command ?? ''}". Available commands: init, check, openapi, client, mock`)
+  console.error(`[nuxt-api-contract] Unknown command "${command ?? ''}". Available commands: init, check, openapi, coverage, client, mock`)
   process.exitCode = 1
 }
 

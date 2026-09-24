@@ -8,6 +8,7 @@ import {
   stopContractCoverage,
   getContractCoverage,
   formatContractCoverage,
+  assertContractCoverage,
 } from '../../src/testing/coverage'
 
 const GetUser = defineApiContract({
@@ -90,6 +91,12 @@ describe('contract coverage', () => {
     const entry = getContractCoverage().covered.find(entry => entry.name === 'TestGetUser')
     expect(entry?.calls).toBe(2)
     expect(entry?.failures).toBe(1)
+  })
+
+  it('validates a coverage threshold', () => {
+    expect(assertContractCoverage({ total: 2, coveredCount: 2, percent: 100, covered: [], uncovered: [] }, 80)).toMatchObject({ passed: true, actual: 100 })
+    expect(assertContractCoverage({ total: 2, coveredCount: 1, percent: 50, covered: [], uncovered: [] }, 80)).toMatchObject({ passed: false, actual: 50 })
+    expect(() => assertContractCoverage({ total: 0, coveredCount: 0, percent: 100, covered: [], uncovered: [] }, 101)).toThrow(RangeError)
   })
 
   it('formats a report and respects stop/reset', async () => {

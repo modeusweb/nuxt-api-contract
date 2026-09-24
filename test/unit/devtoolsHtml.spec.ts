@@ -46,6 +46,13 @@ describe('buildDevtoolsHtml', () => {
     expect(html).not.toMatch(/const CONTRACTS = \[[^\]]*<\/script>/)
   })
 
+  it('reports response timing and invalid JSON in the DevTools panel', () => {
+    const html = buildDevtoolsHtml([GetUser])
+    expect(html).toContain('performance.now()')
+    expect(html).toContain('invalid JSON')
+    expect(html).toContain('status-ok')
+  })
+
   it('renders an empty state page without contracts', () => {
     const html = buildDevtoolsHtml([])
     expect(html).toContain('<!DOCTYPE html>')

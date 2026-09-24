@@ -76,6 +76,8 @@ Types are covered by the same policy. The exported type surface includes:
 `RuntimeApiContractConfig`, `UseApiClientOptions`, `ApiClient`,
 `ContractTestSuite`, `ContractTestInput`, `TestHandler`,
 `ContractCoverageReport`, `ContractCoverageEntry`, `GenerationWarning`,
+  `CoverageThresholdResult`,
+
 `JsonSchemaObject`, `OpenApiOptions`, `OpenApiGenerationResult`,
 `ClientGenerationOptions`, `ClientGenerationResult`, `MockServerOptions`,
 `MockServerHandle`, `EmissionMode`, `ModuleOptions`.

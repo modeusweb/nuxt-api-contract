@@ -15,5 +15,6 @@ export {
   resetContractCoverage,
   getContractCoverage,
   formatContractCoverage,
+  assertContractCoverage,
 } from './testing/coverage'
-export type { ContractCoverageReport, ContractCoverageEntry } from './testing/coverage'
+export type { ContractCoverageReport, ContractCoverageEntry, CoverageThresholdResult } from './testing/coverage'

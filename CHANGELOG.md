@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.7.0
+
+Developer feedback and contract governance release. This release improves the
+DevTools request workflow and makes contract coverage thresholds enforceable
+from local or project-owned CI.
+
+### Added
+
+- **Coverage threshold helper** `assertContractCoverage(report, minimum)` and
+  CLI command `nuxt-api-contract coverage <report.json> --min 80`.
+- DevTools request feedback now includes HTTP status, request duration and
+  response JSON classification.
+
+### Changed
+
+- The package version is now `1.7.0`; existing runtime APIs remain compatible
+  with `1.6.x`.
+- `test:coverage` is available for projects that export a coverage report to
+  `.audit/coverage.json`.
+
+### Verified
+
+`npm run lint`, `npm run typecheck`, `npm run test:unit` (172 tests),
+integration/type tests, `npm run build` and `npm run test:governance` pass on
+Node 24 with Nuxt 4.5.2.
+
 ## 1.6.0
 
 OpenAPI dialect and generated-client release. This release completes the
