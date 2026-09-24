@@ -6,8 +6,10 @@ Define a contract **once** — get runtime validation, fully typed client calls,
 a unified error format, OpenAPI generation, mocks, contract tests and a
 DevTools panel from the same source of truth.
 
-> Status: **1.2.0** — stable public API, strict SemVer. The supported surface is
-> documented in [docs/public-api.md](docs/public-api.md).
+> Status: **1.10.0** — stable public API, strict SemVer. The supported surface is
+> documented in [docs/public-api.md](docs/public-api.md), with current roadmap
+> and migration guidance in [ROADMAP.md](ROADMAP.md) and
+> [docs/compatibility.md](docs/compatibility.md).
 >
 > Requirements: **Nuxt >= 3.15** (verified end-to-end against Nuxt 4.5) and
 > **Node >= 20.19** for the package itself — Nuxt 4 requires
