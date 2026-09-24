@@ -132,6 +132,7 @@ async function main(): Promise<void> {
       title: typeof flags.title === 'string' ? flags.title : undefined,
       version: typeof flags.version === 'string' ? flags.version : undefined,
       strict: flags.strict === true,
+      openapiVersion: flags.openapi === '3.1' ? '3.1' : '3.0',
     })
     for (const warning of warnings) {
       console.warn(`[nuxt-api-contract] OpenAPI warning (${warning.contract}): ${warning.message}`)

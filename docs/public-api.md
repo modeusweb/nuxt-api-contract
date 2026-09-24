@@ -98,6 +98,7 @@ export default defineNuxtConfig({
       version: '0.1.0',
       description: undefined,
       strict: false,
+      openapiVersion: '3.0' as const,
     },
   },
 })

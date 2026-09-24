@@ -777,10 +777,8 @@ Behavior:
   structures are not invented.
 - With Zod 4, coerced (`z.coerce.*`) inputs are repaired at the top level of an
   object schema — see [Zod version support](#zod-version-support).
-- OpenAPI conversion is best-effort for `transform` / `refine` / `preprocess`
-  (a warning is collected, the closest schema is emitted). OpenAPI 3.1 / JSON
-  Schema dialects remain a future roadmap item; use `strict: true` when warnings
-  must fail the build.
+- OpenAPI 3.1 is available with `openapiVersion: '3.1'`; the default remains
+  OpenAPI 3.0.3 for backward compatibility.
 - Auto-discovery is directory-based (`contracts/`, `server/contracts/`) rather
   than a build-time scanner.
 - The standalone generated client supports multipart request bodies via

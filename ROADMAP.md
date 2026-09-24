@@ -66,10 +66,10 @@ the architecture document or importing internal entry points.
 
 ## 1.6.0 — OpenAPI and generated client completeness
 
-**Status: in progress; multipart, strict mode and security metadata released in `1.5.0`**
+**Status: released as `1.6.0`; generated-client edge cases remain in progress**
 
 - [x] Multipart support in the standalone generated client.
-- [ ] Add OpenAPI 3.1/JSON Schema mode behind an explicit option.
+- [x] Add OpenAPI 3.1/JSON Schema mode behind an explicit option.
 - [x] Add strict OpenAPI mode that turns unsupported schema warnings into errors.
 - [x] Add generated-client tests for errors, arrays, recursion and multipart.
 - [x] Add `auth` security metadata without implementing an auth framework.

@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.6.0
+
+OpenAPI dialect and generated-client release. This release completes the
+OpenAPI 3.1/JSON Schema roadmap item while preserving OpenAPI 3.0.3 as the
+backward-compatible default.
+
+### Added
+
+- **OpenAPI 3.1 mode** via `openapiVersion: '3.1'` and CLI `--openapi 3.1`.
+  Nullable schemas are emitted as JSON Schema type unions instead of OpenAPI
+  3.0 `nullable` flags.
+- CLI validation for the explicit OpenAPI version and generated document.
+
+### Changed
+
+- The package version is now `1.6.0`; the default OpenAPI document remains
+  `3.0.3`, so existing consumers are unchanged.
+- `docs/public-api.md` documents both supported OpenAPI dialects.
+
+### Verified
+
+`npm run lint`, `npm run typecheck`, `npm run test:unit` (170 tests),
+integration/type tests, `npm run build` and `npm run test:governance` pass on
+Node 24 with Nuxt 4.5.2.
+
 ## 1.5.0
 
 Generated-client completeness and first-run UX release. This release closes

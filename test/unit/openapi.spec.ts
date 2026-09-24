@@ -60,6 +60,16 @@ describe('zodToJsonSchema', () => {
 })
 
 describe('generateOpenApiDocument', () => {
+  it('generates OpenAPI 3.1 JSON Schema-compatible nullable schemas', () => {
+    const Nullable = defineApiContract({ name: 'Nullable', method: 'GET', path: '/api/nullable', response: z.object({ value: z.string().nullable() }) })
+    const { document } = generateOpenApiDocument([Nullable], { openapiVersion: '3.1' })
+    expect(document.openapi).toBe('3.1.0')
+    const operation = (document.paths as Record<string, Record<string, Record<string, unknown>>>)['/api/nullable']?.get
+    expect(operation).toBeTruthy()
+    const response = (operation as unknown as { responses: Record<string, { content: { 'application/json': { schema: { properties: { value: { type: unknown } } } } } }> }).responses['200']!
+    expect(response.content['application/json'].schema.properties.value.type).toEqual(['string', 'null'])
+  })
+
   it('adds security metadata for authenticated contracts', () => {
     const Secure = defineApiContract({ name: 'Secure', method: 'GET', path: '/api/secure', auth: true, response: z.object({ ok: z.boolean() }) })
     const { document } = generateOpenApiDocument([Secure])

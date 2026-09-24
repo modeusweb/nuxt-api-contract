@@ -26,6 +26,8 @@ export interface OpenApiOptions {
   description?: string
   /** Fail generation when unsupported schema constructs produce warnings. */
   strict?: boolean
+  /** OpenAPI dialect. Defaults to 3.0.3. */
+  openapiVersion?: '3.0' | '3.1'
 }
 
 export interface OpenApiGenerationResult {
@@ -33,9 +35,27 @@ export interface OpenApiGenerationResult {
   warnings: GenerationWarning[]
 }
 
-/* ------------------------------------------------------------------ *
- * Zod -> JSON Schema
- * ------------------------------------------------------------------ */
+function normalizeOpenApi31(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeOpenApi31)
+  if (!value || typeof value !== 'object') return value
+  const source = value as Record<string, unknown>
+  const result: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(source)) {
+    if (key === 'nullable') continue
+    if (key === 'exclusiveMinimum' || key === 'exclusiveMaximum') {
+      if (typeof item === 'boolean') continue
+      result[key] = item
+      continue
+    }
+    result[key] = normalizeOpenApi31(item)
+  }
+  if (source.nullable === true) {
+    if (typeof result.type === 'string') result.type = [result.type, 'null']
+    else if (result.$ref) result.anyOf = [{ $ref: result.$ref }, { type: 'null' }]
+  }
+  return result
+}
+
 
 /** Converts a path like `/api/users/:id` into `/api/users/{id}`. */
 export function toOpenApiPath(path: string): string {
@@ -398,7 +418,7 @@ export function generateOpenApiDocument(
   }
 
   const document = {
-    openapi: '3.0.3',
+    openapi: options.openapiVersion === '3.1' ? '3.1.0' : '3.0.3',
     info: {
       title: options.title ?? 'API Contracts',
       version: options.version ?? '0.1.0',
@@ -456,11 +476,13 @@ export function generateOpenApiDocument(
     },
   }
 
+  const outputDocument = options.openapiVersion === '3.1' ? normalizeOpenApi31(document) : document
+
   if (options.strict && warnings.length > 0) {
     throw new Error(`[nuxt-api-contract] Strict OpenAPI generation failed: ${warnings.map(warning => `${warning.contract}: ${warning.message}`).join('; ')}`)
   }
 
-  return { document, warnings }
+  return { document: outputDocument as Record<string, unknown>, warnings }
 }
 
 /** Helper for CLI / tooling: filters a list of unknown values down to contracts. */
