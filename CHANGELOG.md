@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.9.0
+
+Mock fixture scenarios release. This follow-up adds named response fixtures to
+the standalone mock server after the initial 1.8.0 mock filtering release.
+
+### Added
+
+- **Named mock fixtures** through `scenario`/`fixtures` options and CLI
+  `--scenario empty --fixtures fixtures.json`.
+
+### Changed
+
+- The package version is now `1.9.0`; existing runtime APIs remain compatible
+  with `1.8.x`.
+
+### Verified
+
+All local quality gates and mock-server integration tests pass on Node 24 with
+Nuxt 4.5.2.
+
 ## 1.8.0
 
 Developer feedback and mock tooling release. This release adds safe response
