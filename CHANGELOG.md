@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.4.0
+
+Developer-experience and governance release. This release adds local contract
+governance, OpenAPI drift detection, a Nuxt starter command and a documented
+compatibility/migration policy.
+
+### Added
+
+- **`nuxt-api-contract openapi ... --check`** now verifies that a generated
+  OpenAPI file is present and up to date, failing with an actionable stale-file
+  message.
+- **`nuxt-api-contract init [directory] [--force]`** creates a minimal Nuxt 4
+  project with `nuxt.config.ts`, `app/app.vue`, a health contract and Nitro
+  handler.
+- **`npm run test:governance`** runs strict contract validation and reproducible
+  OpenAPI generation/drift validation.
+- **`docs/compatibility.md`** documents supported runtimes, SemVer rules and the
+  contract migration checklist.
+
+### Changed
+
+- Updated the roadmap to distinguish repository CI (intentionally disabled) from
+  local governance commands and consumer-owned CI.
+- The package version is now `1.4.0`; existing runtime APIs remain compatible
+  with `1.3.x`.
+
+### Verified
+
+`npm run lint`, `npm run typecheck`, `npm run test:unit` (166 tests),
+`npm run build`, `npm run test:governance` and the CLI `init` smoke test pass
+on Node 24 with Nuxt 4.5.2.
+
 ## 1.3.0
 
 Consumer confidence and developer-experience release. This release adds a

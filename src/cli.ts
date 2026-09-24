@@ -6,6 +6,7 @@
  *   nuxt-api-contract openapi <entry> [--output openapi.json] [--title ...] [--version ...]
  *   nuxt-api-contract client <entry> [--output contract-client.ts] [--client-name createClient]
  *   nuxt-api-contract mock <entry> [--port 4000] [--seed 42] [--lenient]
+ *   nuxt-api-contract init [directory] [--force]
  *   nuxt-api-contract check <entry> [--strict]
  *
  * `<entry>` is a TypeScript/JavaScript module that exports contracts either
@@ -13,7 +14,7 @@
  * `kind === 'api-contract'` is picked up).
  */
 import { createJiti } from 'jiti'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { generateOpenApiDocument, pickContracts } from './openapi/generator'
 import { checkContracts } from './contract-check'
@@ -73,6 +74,30 @@ async function loadContractsFromEntry(entry: string): Promise<AnyApiContract[]> 
 async function main(): Promise<void> {
   const { command, positional, flags } = parseArgs(process.argv.slice(2))
 
+  if (command === 'init') {
+    const target = positional[0] ? resolve(positional[0]) : resolve(process.cwd())
+    if (existsSync(target) && existsSync(resolve(target, 'package.json')) && flags.force !== true) {
+      console.error(`[nuxt-api-contract] Refusing to overwrite existing project at ${target}. Use --force to continue.`)
+      process.exitCode = 1
+      return
+    }
+    const files: Record<string, string> = {
+      'package.json': `${JSON.stringify({ name: 'nuxt-api-contract-app', private: true, type: 'module' }, null, 2)}\n`,
+      'nuxt.config.ts': `export default defineNuxtConfig({\n  modules: ['nuxt-api-contract'],\n  apiContract: { openapi: { enabled: true, entry: 'contracts/index.ts' } },\n})\n`,
+      'app/app.vue': '<template><div>API contracts starter</div></template>\n',
+      'contracts/index.ts': `import { z } from 'zod'\nimport { defineApiContract } from 'nuxt-api-contract/client'\n\nexport const Health = defineApiContract({\n  name: 'Health',\n  method: 'GET',\n  path: '/api/health',\n  response: z.object({ ok: z.literal(true) }),\n})\n`,
+      'server/api/health.get.ts': `import { Health } from '../../contracts/index'\nexport default defineContractHandler(Health, () => ({ ok: true }))\n`,
+      '.gitignore': 'node_modules\n.nuxt\n.output\ndist\n',
+    }
+    for (const [file, content] of Object.entries(files)) {
+      const path = resolve(target, file)
+      mkdirSync(dirname(path), { recursive: true })
+      if (!existsSync(path) || flags.force === true) writeFileSync(path, content, 'utf8')
+    }
+    console.log(`[nuxt-api-contract] Starter created in ${target}. Run npm install, then nuxt prepare.`)
+    return
+  }
+
   if (command === 'check') {
     const entry = positional[0]
     if (!entry || !existsSync(entry)) {
@@ -98,7 +123,7 @@ async function main(): Promise<void> {
   if (command === 'openapi') {
     const entry = positional[0]
     if (!entry || !existsSync(entry)) {
-      console.error('[nuxt-api-contract] Usage: nuxt-api-contract openapi <entry> [--output openapi.json]')
+      console.error('[nuxt-api-contract] Usage: nuxt-api-contract openapi <entry> [--output openapi.json] [--check]')
       process.exitCode = 1
       return
     }
@@ -116,6 +141,20 @@ async function main(): Promise<void> {
     const content = flags.yaml === true
       ? toMinimalYaml(document)
       : `${JSON.stringify(document, null, 2)}\n`
+    if (flags.check === true) {
+      if (!existsSync(output)) {
+        console.error(`[nuxt-api-contract] OpenAPI check failed: output file "${output}" does not exist.`)
+        process.exitCode = 1
+        return
+      }
+      if (readFileSync(resolve(output), 'utf8') !== content) {
+        console.error(`[nuxt-api-contract] OpenAPI check failed: "${output}" is stale. Run openapi without --check to update it.`)
+        process.exitCode = 1
+        return
+      }
+      console.log(`[nuxt-api-contract] OpenAPI is up to date: ${output}`)
+      return
+    }
     mkdirSync(dirname(resolve(output)), { recursive: true })
     writeFileSync(resolve(output), content, 'utf8')
     console.log(`[nuxt-api-contract] OpenAPI document with ${contracts.length} contract(s) written to ${output}`)
@@ -177,7 +216,7 @@ async function main(): Promise<void> {
     return
   }
 
-  console.error(`[nuxt-api-contract] Unknown command "${command ?? ''}". Available commands: check, openapi, client, mock`)
+  console.error(`[nuxt-api-contract] Unknown command "${command ?? ''}". Available commands: init, check, openapi, client, mock`)
   process.exitCode = 1
 }
 

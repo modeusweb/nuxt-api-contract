@@ -70,6 +70,20 @@ see [Zod version support](#zod-version-support)).
 
 ## Quick start
 
+### Scaffold a new Nuxt app
+
+```bash
+npx nuxt-api-contract init my-api
+cd my-api
+npm install nuxt vue zod nuxt-api-contract
+npx nuxt-api-contract check contracts/index.ts
+npx nuxt prepare
+```
+
+The command creates a minimal Nuxt 4-compatible project with a health contract,
+Nitro handler and OpenAPI configuration. It refuses to overwrite an existing
+`package.json` unless `--force` is supplied.
+
 ### Check a contracts entry
 
 Validate names, routes and path parameters before generating documentation or
@@ -80,6 +94,17 @@ npx nuxt-api-contract check contracts/index.ts
 ```
 
 Use `--strict` in CI to fail on warnings as well as errors.
+
+### OpenAPI drift check
+
+Generate and then validate a committed or local OpenAPI artifact:
+
+```bash
+nuxt-api-contract openapi contracts/index.ts --output openapi.json
+nuxt-api-contract openapi contracts/index.ts --output openapi.json --check
+```
+
+The `--check` form fails when the file is missing or stale.
 
 
 ```ts
@@ -761,7 +786,9 @@ Behavior:
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md). `1.2.0` is released: core contracts, runtime
+See [docs/compatibility.md](docs/compatibility.md) for supported runtimes and
+migration policy. Use `npm run test:governance` for local contract/OpenAPI
+checks and `npm run test:consumer` for a clean packed-package check.
 validation, typed client, SSR transport, registry, mocks, mock server, contract
 testing, OpenAPI generation, generated client, external contracts, versioning,
 **Zod 4 support**, **multipart bodies**, the 1.1.0 audit fixes and the
