@@ -1,6 +1,6 @@
 {
   "name": "nuxt-api-contract",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Type-safe API contracts between Nitro server routes and the Nuxt client.",
   "type": "module",
   "license": "MIT",

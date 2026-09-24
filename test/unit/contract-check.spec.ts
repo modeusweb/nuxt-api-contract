@@ -26,6 +26,13 @@ describe('checkContracts', () => {
     expect(result.issues.some(issue => issue.message.includes('no object params schema'))).toBe(true)
   })
 
+  it('warns for deprecated contracts with migration guidance', () => {
+    const deprecated = defineApiContract({ name: 'Old', method: 'GET', path: '/api/old', deprecated: { sunset: '2027-01-01' } })
+    const result = checkContracts([deprecated])
+    expect(result.errors).toBe(0)
+    expect(result.issues.some(issue => issue.message.includes('migrate consumers'))).toBe(true)
+  })
+
   it('warns for anonymous contracts and extra params', () => {
     const result = checkContracts([
       defineApiContract({

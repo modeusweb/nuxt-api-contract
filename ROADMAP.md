@@ -85,7 +85,7 @@ behaviour as the Nuxt client for JSON, multipart and declared error payloads.
 - [x] Display request timing, status and response classification.
 - [x] Add redaction hooks for sensitive request/response fields.
 - [x] Improve mock-server fixtures and scenario filtering.
-- [ ] Add migration hints for deprecated contract versions.
+- [x] Add migration hints for deprecated contract versions.
 - [x] Add a runnable coverage threshold helper and CLI command.
 
 ## Later

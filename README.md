@@ -619,10 +619,12 @@ The command exits non-zero when the report is below the requested percentage.
 
 ### DevTools
 
-The standalone mock server accepts `only: ['ContractName']` to restrict the
-served routes and `scenario`/`fixtures` for named response states. DevTools
-supports `metadata: { redact: ['password', 'token'] }` for the fields displayed
-in its request response panel. CLI equivalents are
+The `check` command now reports deprecated contracts as warnings and tells
+consumers to migrate before the sunset date. The standalone mock server accepts
+`only: ['ContractName']` to restrict the served routes and `scenario`/`fixtures`
+for named response states. DevTools supports
+`metadata: { redact: ['password', 'token'] }` for the fields displayed in its
+request response panel. CLI equivalents are
 `nuxt-api-contract mock <entry> --only NameA,NameB` and
 `nuxt-api-contract mock <entry> --scenario empty --fixtures fixtures.json`.
 

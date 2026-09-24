@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.10.0
+
+Contract migration guidance release. This release makes deprecated contract
+warnings actionable during `nuxt-api-contract check` and closes the final
+roadmap item in the developer-feedback block.
+
+### Added
+
+- **Migration warnings** for contracts marked `deprecated`, including guidance
+  to migrate consumers before the configured sunset date.
+
+### Changed
+
+- The package version is now `1.10.0`; existing runtime APIs remain compatible
+  with `1.9.x`.
+
+### Verified
+
+All local quality gates and contract-check tests pass on Node 24 with Nuxt
+4.5.2.
+
 ## 1.9.0
 
 Mock fixture scenarios release. This follow-up adds named response fixtures to

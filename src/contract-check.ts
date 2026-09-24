@@ -49,6 +49,10 @@ export function checkContracts(contracts: readonly AnyApiContract[]): ContractCh
   const routes = new Map<string, AnyApiContract>()
 
   for (const contract of contracts) {
+    if (contract.deprecated) {
+      add('warning', contract, 'Contract is deprecated; migrate consumers before the sunset date.')
+    }
+
     if (!contract.name) {
       add('warning', contract, 'Contract has no name; it will be less useful in registries, DevTools and generated tooling.')
     } else {
